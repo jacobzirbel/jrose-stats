@@ -1,0 +1,67 @@
+old-project/
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build outputs
+/dist/
+/out-tsc/
+/tmp/
+/.angular/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.local
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# npm/yarn logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS temp files
+*~
+.#*
+
+# Bun-specific
+.bun
+.env.bun
+
+# Angular-specific
+.angular/cache/
+.angular/cache
+.angular/bun-cache/
+
+# Local development
+.vscode-test
+launch.json
+
+# Misc
+*.bak
+*.swp
+*.swo
+*~
+.cache/
+.parcel-cache/
+dist-ssr/
+coverage/
