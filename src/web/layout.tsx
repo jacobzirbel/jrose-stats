@@ -17,6 +17,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user: AuthUser | null
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title} · jrose-stats</title>
+      <link rel="stylesheet" href="/static/app.css" />
     </head>
     <body>
       <header>

@@ -1,0 +1,75 @@
+/* Minimal, utilitarian. One stylesheet for the whole shell. */
+
+body {
+  font: 14px/1.5 system-ui, sans-serif;
+  margin: 1.5rem auto;
+  max-width: 880px;
+  padding: 0 1rem;
+}
+h1 {
+  font-size: 1.3rem;
+}
+header {
+  margin-bottom: 1rem;
+}
+
+/* 151-grid spine */
+.spine-toolbar {
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+.spine-toolbar a[aria-current="true"] {
+  font-weight: 700;
+}
+.spine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.spine-cell {
+  position: relative;
+  display: block;
+  padding: 2px;
+  border: 1px solid var(--c, #ccc); /* status color; default grey = untouched */
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+.spine-cell:hover {
+  background: #f2f2f2;
+}
+.spine-cell img {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+}
+.spine-cell .dex {
+  font-size: 0.6rem;
+  color: #999;
+}
+.spine-cell .name {
+  display: block;
+  font-size: 0.65rem;
+}
+.spine-cell[data-status="in_progress"] {
+  --c: #e0a200;
+}
+.spine-cell[data-status="done"] {
+  --c: #2e9e2e;
+}
+.spine-cell[data-status="impossible_abandoned"] {
+  --c: #cc3333;
+}
+.vid-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+}
