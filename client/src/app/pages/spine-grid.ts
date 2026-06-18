@@ -13,10 +13,10 @@ import { spriteUrl, titleCase, type RunStatus, type SpineCell } from '../models'
     <h1>The 151</h1>
     <div class="toolbar">
       Sort:
-      <button type="button" [class.active]="sort() === 'dex'" (click)="setSort('dex')">Dex</button>
       <button type="button" [class.active]="sort() === 'playlist'" (click)="setSort('playlist')">
         Playlist
       </button>
+      <button type="button" [class.active]="sort() === 'dex'" (click)="setSort('dex')">Dex</button>
       <span class="hint">blue dot = has video</span>
     </div>
 
@@ -63,8 +63,8 @@ import { spriteUrl, titleCase, type RunStatus, type SpineCell } from '../models'
       text-decoration: none;
     }
     .cell:hover { background: #f2f2f2; }
-    .cell img { width: 48px; height: 48px; image-rendering: pixelated; }
-    .cell .dex { font-size: 0.6rem; color: #999; }
+    .cell img { display: block; margin: 0 auto; width: 48px; height: 48px; image-rendering: pixelated; }
+    .cell .dex { display: block; font-size: 0.6rem; color: #999; }
     .cell .name { display: block; font-size: 0.65rem; }
     .cell[data-status='in_progress'] { --c: #e0a200; }
     .cell[data-status='done'] { --c: #2e9e2e; }
@@ -83,7 +83,7 @@ import { spriteUrl, titleCase, type RunStatus, type SpineCell } from '../models'
 export class SpineGrid {
   private readonly api = inject(SpineService);
 
-  readonly sort = signal<'dex' | 'playlist'>('dex');
+  readonly sort = signal<'dex' | 'playlist'>('playlist');
   readonly cells = signal<SpineCell[]>([]);
 
   constructor() {
