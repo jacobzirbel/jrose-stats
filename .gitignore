@@ -53,6 +53,9 @@ yarn-error.log*
 *.db-shm
 *.sqlite
 
+# Seed: commit the gzipped PokéAPI cache (.gz) + playlist json, NOT the raw 45MB dump
+seed/pokeapi-cache.json
+
 # Angular-specific
 .angular/cache/
 .angular/cache
