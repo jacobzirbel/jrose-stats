@@ -1,7 +1,6 @@
 old-project/
 # Dependencies
 node_modules/
-bun.lockb
 
 # Build outputs
 /dist/
@@ -46,6 +45,13 @@ yarn-error.log*
 # Bun-specific
 .bun
 .env.bun
+
+# SQLite (WAL mode produces -wal / -shm sidecars)
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
 
 # Angular-specific
 .angular/cache/
