@@ -63,7 +63,7 @@
                 <span class="muted">· {{ rn }}</span>
               }
               @if (!submitted() && hasFields(claim)) {
-                <button type="button" class="fields-edit" (click)="openFieldEditor(claim)" title="Edit details">✎</button>
+                <button type="button" class="fields-edit" (click)="openFieldFlow(claim)" title="Edit details">✎</button>
               }
               <button type="button" class="del" (click)="remove(claim)">✕</button>
             </li>
@@ -119,68 +119,10 @@
     </aside>
   </div>
 
-  @if (fieldEditor(); as ed) {
-    <div class="picker-backdrop" (click)="closeFieldEditor()"></div>
-    <div class="field-editor">
-      <div class="picker-head">{{ itemLabel(ed.claim.catalogItemId) }} — details</div>
-      @for (f of fieldsForItem(ed.claim.catalogItemId); track f.id) {
-        <div class="field-row">
-          <label>{{ f.label }}@if (f.required) {<span class="req"> *</span>}</label>
-          @switch (f.type) {
-            @case ('catalog_ref') {
-              <button type="button" class="ref-pick" (click)="openFieldPicker(f)">
-                {{ draftRefLabel(f) ?? 'Choose…' }}
-              </button>
-            }
-            @case ('enum') {
-              <select [ngModel]="draftText(f)" (ngModelChange)="setDraftValue(f.id, $event)">
-                <option value="">—</option>
-                @for (o of f.options ?? []; track o.value) {
-                  <option [value]="o.value">{{ o.label }}</option>
-                }
-              </select>
-            }
-            @case ('duration') {
-              <input
-                type="text"
-                placeholder="M:SS"
-                [ngModel]="draftText(f)"
-                (ngModelChange)="setDraftValue(f.id, $event)"
-                (keydown.enter)="saveFields()"
-              />
-            }
-            @default {
-              <input
-                [type]="f.type === 'number' ? 'number' : 'text'"
-                [ngModel]="draftText(f)"
-                (ngModelChange)="setDraftValue(f.id, $event)"
-                (keydown.enter)="saveFields()"
-              />
-            }
-          }
-        </div>
-      }
-      @if (fieldError(); as fe) {
-        <p class="field-err">{{ fe }}</p>
-      }
-      <div class="field-actions">
-        <button type="button" (click)="saveFields()">Save</button>
-        <button type="button" class="ghost" (click)="closeFieldEditor()">Cancel</button>
-      </div>
-    </div>
-  }
-
   @if (picker(); as p) {
     <div class="picker-backdrop" (click)="closePicker()"></div>
     <div class="picker">
-      <div class="picker-head">
-        @if (p.mode === 'claim') {
-          {{ p.category.label }} @ {{ time(p.timestampSec) }}
-        }
-        @if (p.mode === 'field') {
-          {{ p.field.label }} — pick from {{ p.category.label }}
-        }
-      </div>
+      <div class="picker-head">{{ p.category.label }} @ {{ time(p.timestampSec) }}</div>
       <input
         #searchInput
         type="text"
@@ -196,7 +138,7 @@
           <li>
             <button type="button" [class.active]="i === activeIndex()" (click)="choose(item.id)">
               {{ item.label }}
-              @if (p.mode === 'claim' && claimedIds().has(item.id)) {
+              @if (claimedIds().has(item.id)) {
                 <span class="logged">✓ logged</span>
               }
             </button>
@@ -206,6 +148,50 @@
         }
       </ul>
     </div>
+  }
+
+  @if (fieldFlow(); as fl) {
+    @if (flowField(); as f) {
+      <div class="picker-backdrop" (click)="closeFieldFlow()"></div>
+      <div class="picker">
+        <div class="picker-head">
+          {{ itemLabel(fl.claim.catalogItemId) }} — {{ f.label }}
+          @if (fl.fields.length > 1) {
+            <span class="muted">({{ fl.index + 1 }}/{{ fl.fields.length }})</span>
+          }
+        </div>
+        <input
+          #flowInput
+          type="text"
+          [ngModel]="flowText"
+          (ngModelChange)="onFlowInput($event)"
+          (keydown.arrowdown)="onFlowArrow(1, $event)"
+          (keydown.arrowup)="onFlowArrow(-1, $event)"
+          (keydown.enter)="onFlowEnter()"
+          [placeholder]="flowPlaceholder(f)"
+        />
+        @if (flowHasList()) {
+          <ul class="picker-list">
+            @for (item of flowItems(); track item.key; let i = $index) {
+              <li>
+                <button type="button" [class.active]="i === flowActiveIndex()" (click)="onFlowPick(item.key)">
+                  {{ item.label }}
+                </button>
+              </li>
+            } @empty {
+              <li class="muted">no match</li>
+            }
+          </ul>
+        }
+        @if (flowDraftHint(f); as h) {
+          <p class="muted flow-current">current: {{ h }}</p>
+        }
+        <p class="flow-hint">Enter to {{ fl.index + 1 < fl.fields.length ? 'continue' : 'save' }} · Esc to cancel</p>
+        @if (flowError(); as fe) {
+          <p class="field-err">{{ fe }}</p>
+        }
+      </div>
+    }
   }
 } @else if (notFound()) {
   <p>Couldn't open this video for logging.</p>

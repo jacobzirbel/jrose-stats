@@ -47,7 +47,7 @@ export const CATEGORY_FIELDS: CategoryFieldSeed[] = [
   { category: "moves", item: "metronome", slug: "copied-move", label: "Metronome result", type: "catalog_ref", refCategory: "moves" },
   // In-game time to clear Brock — shows on the Brock gym claim only. Stored as
   // seconds; the workbench accepts M:SS and parses it.
-  { category: "gyms", item: "gym-brock", slug: "ingame-time", label: "In-game time (to Brock)", type: "duration" },
+  { category: "gyms", item: "gym-brock", slug: "ingame-time", label: "In-game time (after beating Brock, 0 if unknown)", type: "duration" },
 ];
 
 export const GYMS = [
