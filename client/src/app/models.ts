@@ -34,6 +34,54 @@ export interface PokemonDetail {
   videos: SpineVideo[];
 }
 
+// --- workbench (1E) ---------------------------------------------------------
+
+export interface CatalogItem {
+  id: number;
+  slug: string;
+  label: string;
+}
+
+export interface Category {
+  id: number;
+  slug: string;
+  label: string;
+  keybind: string | null;
+  required: boolean;
+  items: CatalogItem[];
+}
+
+export interface WorkbenchRun {
+  id: number;
+  pokemonDex: number;
+  name: string;
+  status: RunStatus;
+  partNo: number;
+}
+
+export interface Claim {
+  id: number;
+  catalogItemId: number;
+  timestampSec: number;
+  note: string | null;
+  runId: number | null;
+}
+
+export interface WorkbenchData {
+  log: { id: number; status: string };
+  video: { id: number; title: string | null; youtubeId: string | null; durationSec: number | null };
+  runs: WorkbenchRun[];
+  claims: Claim[];
+}
+
+/** mm:ss for a second offset. */
+export function clock(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${mm}:${ss.toString().padStart(2, '0')}`;
+}
+
 export const STATUS_LABEL: Record<RunStatus, string> = {
   untouched: 'Untouched',
   in_progress: 'In progress',

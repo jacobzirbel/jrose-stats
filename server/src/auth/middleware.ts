@@ -3,7 +3,8 @@
  *
  * `sessionContext` runs on every request: it reads the session cookie, resolves
  * the user, and stashes it (or null) on the context. `requireAuth` gates routes
- * that need a logged-in user, redirecting anonymous visitors to /login.
+ * that need a logged-in user, answering anonymous callers with 401 (this is a
+ * JSON API — the Angular client redirects to /login on a 401).
  */
 import { createMiddleware } from "hono/factory";
 import { getCookie } from "hono/cookie";
@@ -24,6 +25,6 @@ export const sessionContext = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
-  if (!c.get("user")) return c.redirect("/login");
+  if (!c.get("user")) return c.json({ error: "Unauthorized" }, 401);
   await next();
 });

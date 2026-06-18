@@ -3,12 +3,14 @@
  * `ng serve` in dev, proxied under /api).
  *   Phase 1C: session middleware + account routes.
  *   Phase 1D: public spine + per-pokemon detail.
+ *   Phase 1E: workbench (catalog + draft logs + claims).
  */
 import { Hono } from "hono";
 
 import { type AppEnv, sessionContext } from "./auth/middleware";
 import { authRoutes } from "./routes/auth";
 import { spineRoutes } from "./routes/spine";
+import { workbenchRoutes } from "./routes/workbench";
 
 const app = new Hono<AppEnv>();
 
@@ -20,6 +22,7 @@ app.use("/api/*", sessionContext);
 const api = new Hono<AppEnv>();
 api.route("/", authRoutes);
 api.route("/", spineRoutes);
+api.route("/", workbenchRoutes);
 app.route("/api", api);
 
 const port = Number(process.env.PORT ?? 3000);

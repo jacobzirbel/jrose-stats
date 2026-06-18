@@ -30,18 +30,17 @@ import { STATUS_LABEL, titleCase, type PokemonDetail, type SpineVideo } from '..
               @if (isMultiPart(d, v)) {
                 <span>(part {{ v.partNo }})</span>
               }
+              @if (auth.user()) {
+                <a class="log-link" [routerLink]="['/log', v.videoId]">log</a>
+              }
             </li>
           }
         </ul>
       }
 
-      <p>
-        @if (auth.user()) {
-          <em>Logging opens here once the workbench lands (Phase 1E).</em>
-        } @else {
-          <a routerLink="/login">Log in to log this run</a>
-        }
-      </p>
+      @if (!auth.user()) {
+        <p><a routerLink="/login">Log in to log this run</a></p>
+      }
     } @else if (notFound()) {
       <p>Not found.</p>
     }

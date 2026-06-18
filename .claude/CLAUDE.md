@@ -1,0 +1,1 @@
+- Angular files should not have inline styles or templates. Move them to separate files.
