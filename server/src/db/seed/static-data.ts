@@ -25,6 +25,31 @@ export const EVENTS = [
   { slug: "count-impression", label: "Count impression" },
 ] as const;
 
+// Per-claim metadata field config (core's category_fields). Each entry is one
+// typed field a claim may carry. `item` scopes it to a single catalog item
+// (omit = whole category); `refCategory` is the catalog a type='catalog_ref'
+// picker draws from. Resolved to ids by `seedCategoryFields` (slugs → ids).
+export interface CategoryFieldSeed {
+  category: string;
+  item?: string;
+  slug: string;
+  label: string;
+  type: "text" | "number" | "duration" | "enum" | "catalog_ref";
+  refCategory?: string;
+}
+
+export const CATEGORY_FIELDS: CategoryFieldSeed[] = [
+  // Copy mechanics: the CLAIM is the mechanic move (mimic / mirror-move /
+  // metronome — all in-learnset); the field records the move it produced,
+  // picked from ALL moves (NOT the run learnset). One row per mechanic item.
+  { category: "moves", item: "mimic", slug: "copied-move", label: "Mimicked move", type: "catalog_ref", refCategory: "moves" },
+  { category: "moves", item: "mirror-move", slug: "copied-move", label: "Mirrored move", type: "catalog_ref", refCategory: "moves" },
+  { category: "moves", item: "metronome", slug: "copied-move", label: "Metronome result", type: "catalog_ref", refCategory: "moves" },
+  // In-game time to clear Brock — shows on the Brock gym claim only. Stored as
+  // seconds; the workbench accepts M:SS and parses it.
+  { category: "gyms", item: "gym-brock", slug: "ingame-time", label: "In-game time (to Brock)", type: "duration" },
+];
+
 export const GYMS = [
   { order: 1, leader: "Brock", city: "Pewter City", slug: "gym-brock", label: "Brock — Pewter Gym" },
   { order: 2, leader: "Misty", city: "Cerulean City", slug: "gym-misty", label: "Misty — Cerulean Gym" },

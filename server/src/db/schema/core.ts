@@ -172,3 +172,73 @@ export const eventClaims = sqliteTable(
     index("ix_claims_catalog").on(t.catalogItemId),
   ],
 );
+
+// --- per-claim structured metadata (queryable; NOT a JSON blob) -------------
+// Config: extra typed fields a claim MAY carry. Scope (`catalog_item_id`):
+//   NULL → every claim in the category; set → only claims on that one item.
+// Examples seeded today: a `copied-move` field on the mimic/mirror-move/
+// metronome items (claim = the mechanic, field = the move it produced), and an
+// `ingame-time` field on the Brock gym item only.
+export const categoryFields = sqliteTable(
+  "category_fields",
+  {
+    id: integer("id").primaryKey(),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => categories.id),
+    catalogItemId: integer("catalog_item_id").references(() => catalogItems.id),
+    slug: text("slug").notNull(),
+    label: text("label").notNull(),
+    type: text("type").notNull().default("text"),
+    // type='catalog_ref' only: the category the picked item is drawn from (e.g.
+    // moves). Keeps "pick any move" in CORE terms — a category id, never a
+    // domain table — so the generic field UI needs no Pokémon knowledge.
+    refCategoryId: integer("ref_category_id").references(() => categories.id),
+    // JSON array of {value,label} for type='enum'; NULL for other types.
+    options: text("options"),
+    required: integer("required").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [
+    // slug unique per scope (category + optional item). coalesce sentinel keeps
+    // category-wide (NULL item) rows from colliding under SQLite NULL-distinct.
+    uniqueIndex("category_fields_scope_slug_uq").on(
+      t.categoryId,
+      sql`coalesce(${t.catalogItemId}, 0)`,
+      t.slug,
+    ),
+    check(
+      "category_fields_type_chk",
+      sql`${t.type} IN ('text','number','duration','enum','catalog_ref')`,
+    ),
+  ],
+);
+
+// Values: one typed value per (claim, field). The claim atom stays unstructured
+// (event_claims.note is human-only); every structured fact lives here as its own
+// row — one column per value, never a blob — so it stays queryable. Exactly one
+// of value / value_catalog_item_id is populated per the field's type (enforced
+// by the validation layer, since a CHECK can't reach category_fields.type).
+export const claimFields = sqliteTable(
+  "claim_fields",
+  {
+    id: integer("id").primaryKey(),
+    claimId: integer("claim_id")
+      .notNull()
+      .references(() => eventClaims.id, { onDelete: "cascade" }),
+    fieldId: integer("field_id")
+      .notNull()
+      .references(() => categoryFields.id),
+    // Scalar value (text/number/duration/enum); NULL when the field is catalog_ref.
+    value: text("value"),
+    // Reference value for type='catalog_ref' (e.g. the copied move) — a real FK,
+    // so the copied move stays a first-class catalog_item, not a stringified id.
+    valueCatalogItemId: integer("value_catalog_item_id").references(
+      () => catalogItems.id,
+    ),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [unique("claim_fields_claim_field_uq").on(t.claimId, t.fieldId)],
+);

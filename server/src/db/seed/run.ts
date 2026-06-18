@@ -5,7 +5,7 @@
  *   1B-2 (if YOUTUBE_API_KEY + YOUTUBE_PLAYLIST_ID set): videos + run links.
  */
 import { db, sqlite } from "../client";
-import { seedContent } from "./content";
+import { seedCategoryFields, seedContent } from "./content";
 import { seedReference } from "./reference";
 import { seedYoutube } from "./youtube";
 
@@ -14,6 +14,9 @@ console.log("✓ reference seed:", ref);
 
 const content = seedContent(db);
 console.log(`✓ content seed: ${content.events} events`);
+
+const fields = seedCategoryFields(db);
+console.log(`✓ field seed: ${fields} category fields`);
 
 if (process.env.YOUTUBE_API_KEY && process.env.YOUTUBE_PLAYLIST_ID) {
   const yt = await seedYoutube(db);
