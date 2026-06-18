@@ -1,7 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import type { Category, Claim, Violation, WorkbenchData } from './models';
+import type {
+  Category,
+  CategoryField,
+  Claim,
+  ClaimFieldValue,
+  Violation,
+  WorkbenchData,
+} from './models';
 
 /** Logging surface: catalog reads + draft/claim writes (all behind auth on the API). */
 @Injectable({ providedIn: 'root' })
@@ -14,7 +21,15 @@ export class WorkbenchService {
   }
 
   catalog() {
-    return this.http.get<{ categories: Category[] }>('/api/catalog');
+    return this.http.get<{ categories: Category[]; fields: CategoryField[] }>('/api/catalog');
+  }
+
+  /** Replace a claim's metadata field values. Returns the persisted set. */
+  saveClaimFields(claimId: number, values: ClaimFieldValue[]) {
+    return this.http.put<{ claimId: number; fields: ClaimFieldValue[] }>(
+      `/api/claims/${claimId}/fields`,
+      { values },
+    );
   }
 
   addClaim(logId: number, body: { catalogItemId: number; timestampSec: number; runId?: number | null }) {

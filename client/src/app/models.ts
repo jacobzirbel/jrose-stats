@@ -51,6 +51,29 @@ export interface Category {
   items: CatalogItem[];
 }
 
+export type CategoryFieldType = 'text' | 'number' | 'duration' | 'enum' | 'catalog_ref';
+
+/** A configured per-claim metadata field (core's category_fields). */
+export interface CategoryField {
+  id: number;
+  categoryId: number;
+  catalogItemId: number | null; // null = whole category; set = item-scoped
+  slug: string;
+  label: string;
+  type: CategoryFieldType;
+  refCategorySlug: string | null; // catalog_ref: the category its picker draws from
+  options: { value: string; label: string }[] | null; // enum only
+  required: boolean;
+  sortOrder: number;
+}
+
+/** A stored value for one (claim, field). Exactly one column is populated. */
+export interface ClaimFieldValue {
+  fieldId: number;
+  value: string | null;
+  valueCatalogItemId: number | null;
+}
+
 export interface WorkbenchRun {
   id: number;
   pokemonDex: number;
@@ -65,6 +88,7 @@ export interface Claim {
   timestampSec: number;
   note: string | null;
   runId: number | null;
+  fields?: ClaimFieldValue[];
 }
 
 export interface WorkbenchData {
@@ -86,6 +110,21 @@ export function clock(totalSec: number): string {
   const mm = Math.floor(s / 60);
   const ss = s % 60;
   return `${mm}:${ss.toString().padStart(2, '0')}`;
+}
+
+/** Inverse of `clock`: "3:42" or bare "222" -> seconds; null if unparseable. */
+export function parseClock(text: string): number | null {
+  const t = text.trim();
+  if (!t) return null;
+  if (t.includes(':')) {
+    const [m, s] = t.split(':');
+    const mm = Number(m);
+    const ss = Number(s);
+    if (!Number.isFinite(mm) || !Number.isFinite(ss) || ss < 0 || ss >= 60) return null;
+    return mm * 60 + ss;
+  }
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 export const STATUS_LABEL: Record<RunStatus, string> = {

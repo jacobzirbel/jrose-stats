@@ -10,12 +10,15 @@
  */
 import { Hono } from "hono";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 
 import { type AppEnv, requireAuth } from "../auth/middleware";
 import { db } from "../db/client";
 import {
   catalogItems,
   categories,
+  categoryFields,
+  claimFields,
   claimRun,
   eventClaims,
   videoLogs,
@@ -57,6 +60,28 @@ workbenchRoutes.get("/catalog", (c) => {
     (byCategory.get(it.categoryId) ?? byCategory.set(it.categoryId, []).get(it.categoryId)!).push(it);
   }
 
+  // Per-claim metadata field config. ref_category resolves to a slug so the
+  // client can drive a catalog_ref picker off the category list it already has
+  // (a CORE pointer — no domain/learnset knowledge in the generic field UI).
+  const refCat = alias(categories, "ref_cat");
+  const fields = db
+    .select({
+      id: categoryFields.id,
+      categoryId: categoryFields.categoryId,
+      catalogItemId: categoryFields.catalogItemId,
+      slug: categoryFields.slug,
+      label: categoryFields.label,
+      type: categoryFields.type,
+      refCategorySlug: refCat.slug,
+      options: categoryFields.options,
+      required: categoryFields.required,
+      sortOrder: categoryFields.sortOrder,
+    })
+    .from(categoryFields)
+    .leftJoin(refCat, eq(refCat.id, categoryFields.refCategoryId))
+    .orderBy(asc(categoryFields.sortOrder), asc(categoryFields.id))
+    .all();
+
   return c.json({
     categories: cats.map((cat) => ({
       id: cat.id,
@@ -65,6 +90,11 @@ workbenchRoutes.get("/catalog", (c) => {
       keybind: cat.keybind,
       required: cat.required === 1,
       items: (byCategory.get(cat.id) ?? []).map(({ id, slug, label }) => ({ id, slug, label })),
+    })),
+    fields: fields.map((f) => ({
+      ...f,
+      required: f.required === 1,
+      options: f.options ? (JSON.parse(f.options) as { value: string; label: string }[]) : null,
     })),
   });
 });
@@ -120,7 +150,7 @@ workbenchRoutes.post("/logs/:videoId/open", requireAuth, (c) => {
     ORDER BY r.pokemon_dex
   `);
 
-  const claims = db.all<{
+  const claimRows = db.all<{
     id: number;
     catalogItemId: number;
     timestampSec: number;
@@ -134,6 +164,25 @@ workbenchRoutes.post("/logs/:videoId/open", requireAuth, (c) => {
     WHERE ec.log_id = ${log.id}
     ORDER BY ec.timestamp_sec
   `);
+
+  // Saved metadata values, grouped onto their claim (drives the field UI on reopen).
+  const values = db.all<{
+    claimId: number;
+    fieldId: number;
+    value: string | null;
+    valueCatalogItemId: number | null;
+  }>(sql`
+    SELECT cf.claim_id AS claimId, cf.field_id AS fieldId, cf.value AS value,
+           cf.value_catalog_item_id AS valueCatalogItemId
+    FROM claim_fields cf JOIN event_claims ec ON ec.id = cf.claim_id
+    WHERE ec.log_id = ${log.id}
+  `);
+  const fieldsByClaim = new Map<number, { fieldId: number; value: string | null; valueCatalogItemId: number | null }[]>();
+  for (const v of values) {
+    const { claimId, ...rest } = v;
+    (fieldsByClaim.get(claimId) ?? fieldsByClaim.set(claimId, []).get(claimId)!).push(rest);
+  }
+  const claims = claimRows.map((cl) => ({ ...cl, fields: fieldsByClaim.get(cl.id) ?? [] }));
 
   return c.json({ log, video, runs, claims });
 });
@@ -167,6 +216,63 @@ workbenchRoutes.post("/logs/:logId/claims", requireAuth, async (c) => {
   touchLog(logId);
 
   return c.json({ id: claim.id, catalogItemId, timestampSec, note, runId }, 201);
+});
+
+// --- set a claim's metadata field values (replace-all) ---------------------
+workbenchRoutes.put("/claims/:claimId/fields", requireAuth, async (c) => {
+  const user = c.get("user")!;
+  const claimId = Number(c.req.param("claimId"));
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const incoming = Array.isArray(body.values) ? (body.values as Record<string, unknown>[]) : [];
+
+  // The claim must sit on the caller's DRAFT log; pull its category + item for scoping.
+  const claim = db.all<{ id: number; logId: number; categoryId: number; catalogItemId: number }>(sql`
+    SELECT ec.id AS id, ec.log_id AS logId, ci.category_id AS categoryId, ec.catalog_item_id AS catalogItemId
+    FROM event_claims ec
+    JOIN video_logs vl ON vl.id = ec.log_id
+    JOIN catalog_items ci ON ci.id = ec.catalog_item_id
+    WHERE ec.id = ${claimId} AND vl.user_id = ${user.id} AND vl.status = 'draft' AND vl.deleted_at IS NULL
+  `)[0];
+  if (!claim) return c.json({ error: "Claim not found" }, 404);
+
+  // Fields valid for this claim's scope (category-wide OR this exact item).
+  const applicable = db.all<{ id: number; type: string; required: number }>(sql`
+    SELECT id, type, required FROM category_fields
+    WHERE category_id = ${claim.categoryId}
+      AND (catalog_item_id IS NULL OR catalog_item_id = ${claim.catalogItemId})
+  `);
+  const byId = new Map(applicable.map((f) => [f.id, f]));
+
+  const rows: { claimId: number; fieldId: number; value: string | null; valueCatalogItemId: number | null }[] = [];
+  for (const v of incoming) {
+    const field = byId.get(Number(v.fieldId));
+    if (!field) return c.json({ error: `Field ${v.fieldId} doesn't apply to this claim.` }, 400);
+
+    if (field.type === "catalog_ref") {
+      const refId = v.valueCatalogItemId != null ? Number(v.valueCatalogItemId) : NaN;
+      if (!Number.isInteger(refId)) return c.json({ error: `"${field.id}" needs a catalog selection.` }, 400);
+      rows.push({ claimId, fieldId: field.id, value: null, valueCatalogItemId: refId });
+    } else {
+      const value = v.value != null ? String(v.value).trim() : "";
+      if (!value) continue; // empty scalar = "leave unset", not an error
+      if ((field.type === "number" || field.type === "duration") && !Number.isFinite(Number(value))) {
+        return c.json({ error: `"${field.id}" must be numeric.` }, 400);
+      }
+      rows.push({ claimId, fieldId: field.id, value, valueCatalogItemId: null });
+    }
+  }
+
+  // Replace-all: clear this claim's values, write the new set atomically.
+  db.transaction((tx) => {
+    tx.delete(claimFields).where(eq(claimFields.claimId, claimId)).run();
+    if (rows.length) tx.insert(claimFields).values(rows).run();
+  });
+  touchLog(claim.logId);
+
+  return c.json({
+    claimId,
+    fields: rows.map(({ fieldId, value, valueCatalogItemId }) => ({ fieldId, value, valueCatalogItemId })),
+  });
 });
 
 // --- submit (draft -> submitted) through the validator gate ----------------

@@ -1,0 +1,212 @@
+@if (data(); as d) {
+  <p><a [routerLink]="backLink()">← back</a></p>
+  <h1>Logging: {{ d.video.title ?? 'Video ' + d.video.id }}</h1>
+
+  <div class="wb">
+    <div class="wb-main">
+      <div class="player" [class.youtube-focus]="youtubeFocused()">
+        <youtube-player [videoId]="d.video.youtubeId ?? ''" />
+      </div>
+      <div class="kbd-status" [class.to-youtube]="youtubeFocused()">
+        @if (youtubeFocused()) {
+          ▶ Keyboard is going to YouTube — click the page to use shortcuts
+        } @else {
+          ⌨ Shortcuts active · space play/pause · ←/→ scrub {{ scrubSec }}s · ,/. speed
+          ({{ playbackRate() }}×)
+        }
+      </div>
+
+      @if (d.runs.length > 1) {
+        <div class="runbar">
+          Tagging run:
+          @for (r of d.runs; track r.id) {
+            <button
+              type="button"
+              [class.active]="selectedRunId() === r.id"
+              (click)="selectedRunId.set(r.id)"
+            >
+              {{ name(r.name) }}
+            </button>
+          }
+        </div>
+      }
+
+      <p class="hint">
+        Tag at playhead:
+        @for (c of categories(); track c.id) {
+          @if (c.keybind) {
+            <kbd>{{ c.keybind }}</kbd><span>{{ c.label }}</span>
+          }
+        }
+      </p>
+
+      <app-timeline-bar
+        [items]="timelineItems()"
+        [durationSec]="d.video.durationSec"
+        [currentSec]="currentSec()"
+        (seek)="seekTo($event)"
+      />
+
+      <h2>Waypoints ({{ sortedClaims().length }})</h2>
+      @if (sortedClaims().length === 0) {
+        <p class="muted">No tags yet.</p>
+      } @else {
+        <ul class="waypoints">
+          @for (claim of sortedClaims(); track claim.id) {
+            <li>
+              <button type="button" class="ts" (click)="seek(claim)">{{ time(claim.timestampSec) }}</button>
+              <span>{{ itemLabel(claim.catalogItemId) }}</span>
+              @for (s of claimFieldSummaries(claim); track $index) {
+                <span class="field-chip">{{ s }}</span>
+              }
+              @if (claim.runId && runName(d, claim.runId); as rn) {
+                <span class="muted">· {{ rn }}</span>
+              }
+              @if (!submitted() && hasFields(claim)) {
+                <button type="button" class="fields-edit" (click)="openFieldEditor(claim)" title="Edit details">✎</button>
+              }
+              <button type="button" class="del" (click)="remove(claim)">✕</button>
+            </li>
+          }
+        </ul>
+      }
+
+      <div class="submit">
+        @if (submitted()) {
+          <p class="ok">✓ Submitted.</p>
+        } @else {
+          @if (violations().length) {
+            <ul class="violations">
+              @for (v of violations(); track $index) {
+                <li>{{ v.message }}</li>
+              }
+            </ul>
+          }
+          <button type="button" (click)="submit()" [disabled]="submitting()">Submit log</button>
+        }
+      </div>
+    </div>
+
+    <aside class="wb-side">
+      <h3>Catalog</h3>
+      @for (c of categories(); track c.id) {
+        <div class="cat">
+          <button type="button" class="cat-head" (click)="toggleCollapse(c.id)">
+            <span>{{ isCollapsed(c.id) ? '▸' : '▾' }} {{ c.label }}</span>
+            <span class="muted">{{ loggedCount(c) }}/{{ c.items.length }}</span>
+          </button>
+          @if (!isCollapsed(c.id)) {
+            <ul class="cat-items">
+              @for (it of c.items; track it.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="cat-item"
+                    [class.logged]="claimedIds().has(it.id)"
+                    [title]="'Tag at ' + time(currentSec())"
+                    (click)="tagItem(it.id)"
+                  >
+                    {{ claimedIds().has(it.id) ? '✓ ' : '' }}{{ it.label }}
+                  </button>
+                </li>
+              } @empty {
+                <li class="muted">none</li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </aside>
+  </div>
+
+  @if (fieldEditor(); as ed) {
+    <div class="picker-backdrop" (click)="closeFieldEditor()"></div>
+    <div class="field-editor">
+      <div class="picker-head">{{ itemLabel(ed.claim.catalogItemId) }} — details</div>
+      @for (f of fieldsForItem(ed.claim.catalogItemId); track f.id) {
+        <div class="field-row">
+          <label>{{ f.label }}@if (f.required) {<span class="req"> *</span>}</label>
+          @switch (f.type) {
+            @case ('catalog_ref') {
+              <button type="button" class="ref-pick" (click)="openFieldPicker(f)">
+                {{ draftRefLabel(f) ?? 'Choose…' }}
+              </button>
+            }
+            @case ('enum') {
+              <select [ngModel]="draftText(f)" (ngModelChange)="setDraftValue(f.id, $event)">
+                <option value="">—</option>
+                @for (o of f.options ?? []; track o.value) {
+                  <option [value]="o.value">{{ o.label }}</option>
+                }
+              </select>
+            }
+            @case ('duration') {
+              <input
+                type="text"
+                placeholder="M:SS"
+                [ngModel]="draftText(f)"
+                (ngModelChange)="setDraftValue(f.id, $event)"
+                (keydown.enter)="saveFields()"
+              />
+            }
+            @default {
+              <input
+                [type]="f.type === 'number' ? 'number' : 'text'"
+                [ngModel]="draftText(f)"
+                (ngModelChange)="setDraftValue(f.id, $event)"
+                (keydown.enter)="saveFields()"
+              />
+            }
+          }
+        </div>
+      }
+      @if (fieldError(); as fe) {
+        <p class="field-err">{{ fe }}</p>
+      }
+      <div class="field-actions">
+        <button type="button" (click)="saveFields()">Save</button>
+        <button type="button" class="ghost" (click)="closeFieldEditor()">Cancel</button>
+      </div>
+    </div>
+  }
+
+  @if (picker(); as p) {
+    <div class="picker-backdrop" (click)="closePicker()"></div>
+    <div class="picker">
+      <div class="picker-head">
+        @if (p.mode === 'claim') {
+          {{ p.category.label }} @ {{ time(p.timestampSec) }}
+        }
+        @if (p.mode === 'field') {
+          {{ p.field.label }} — pick from {{ p.category.label }}
+        }
+      </div>
+      <input
+        #searchInput
+        type="text"
+        [(ngModel)]="searchText"
+        (ngModelChange)="onSearch($event)"
+        (keydown.arrowdown)="onArrow(1, $event)"
+        (keydown.arrowup)="onArrow(-1, $event)"
+        (keydown.enter)="chooseActive()"
+        placeholder="search…"
+      />
+      <ul class="picker-list">
+        @for (item of filteredItems(); track item.id; let i = $index) {
+          <li>
+            <button type="button" [class.active]="i === activeIndex()" (click)="choose(item.id)">
+              {{ item.label }}
+              @if (p.mode === 'claim' && claimedIds().has(item.id)) {
+                <span class="logged">✓ logged</span>
+              }
+            </button>
+          </li>
+        } @empty {
+          <li class="muted">no match</li>
+        }
+      </ul>
+    </div>
+  }
+} @else if (notFound()) {
+  <p>Couldn't open this video for logging.</p>
+}

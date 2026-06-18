@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm";
 import type { DB } from "../db/client";
 import {
   CatalogItemActive,
+  ClaimFieldsValidator,
   RequiredCategoriesPresent,
   TimestampBounds,
 } from "./core-validators";
@@ -44,7 +45,35 @@ function buildContext(db: DB, logId: number): ValidationContext | null {
     )
     .map((c) => ({ id: c.id, slug: c.slug, label: c.label, required: c.required === 1 }));
 
-  return { log: { id: logId }, video, claims, categories };
+  const categoryFields = db
+    .all<{
+      id: number;
+      categoryId: number;
+      catalogItemId: number | null;
+      slug: string;
+      label: string;
+      type: string;
+      required: number;
+    }>(sql`
+      SELECT id, category_id AS categoryId, catalog_item_id AS catalogItemId,
+             slug, label, type, required
+      FROM category_fields
+    `)
+    .map((f) => ({ ...f, required: f.required === 1 }));
+
+  const claimFields = db.all<{
+    claimId: number;
+    fieldId: number;
+    value: string | null;
+    valueCatalogItemId: number | null;
+  }>(sql`
+    SELECT cf.claim_id AS claimId, cf.field_id AS fieldId, cf.value AS value,
+           cf.value_catalog_item_id AS valueCatalogItemId
+    FROM claim_fields cf JOIN event_claims ec ON ec.id = cf.claim_id
+    WHERE ec.log_id = ${logId}
+  `);
+
+  return { log: { id: logId }, video, claims, categories, categoryFields, claimFields };
 }
 
 /** Run every validator over the log; empty array = clean (ready to submit). */
@@ -56,6 +85,7 @@ export function validateLog(db: DB, logId: number): Violation[] {
     new RequiredCategoriesPresent(new Set([GymCompletenessValidator.OWNS])),
     new TimestampBounds(),
     new CatalogItemActive(),
+    new ClaimFieldsValidator(),
     new LearnsetValidator(db),
     new GymCompletenessValidator(db),
   ];

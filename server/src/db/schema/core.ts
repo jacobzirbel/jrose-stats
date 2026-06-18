@@ -200,13 +200,18 @@ export const categoryFields = sqliteTable(
     sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [
-    // slug unique per scope (category + optional item). coalesce sentinel keeps
-    // category-wide (NULL item) rows from colliding under SQLite NULL-distinct.
-    uniqueIndex("category_fields_scope_slug_uq").on(
-      t.categoryId,
-      sql`coalesce(${t.catalogItemId}, 0)`,
-      t.slug,
-    ),
+    // slug unique per scope. Two partial indexes instead of one coalesce
+    // expression: drizzle-kit can't render a SQL expression inside .on(), but
+    // partial .where() predicates emit verbatim (cf. video_logs_user_video_uq).
+    // Item-scoped: slug unique within (category, item) — so mimic/mirror-move/
+    // metronome can all carry their own `copied-move`.
+    uniqueIndex("category_fields_item_slug_uq")
+      .on(t.categoryId, t.catalogItemId, t.slug)
+      .where(sql`${t.catalogItemId} IS NOT NULL`),
+    // Category-wide: slug unique within the category (NULL item).
+    uniqueIndex("category_fields_cat_slug_uq")
+      .on(t.categoryId, t.slug)
+      .where(sql`${t.catalogItemId} IS NULL`),
     check(
       "category_fields_type_chk",
       sql`${t.type} IN ('text','number','duration','enum','catalog_ref')`,

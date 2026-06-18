@@ -22,6 +22,38 @@ CREATE TABLE `categories` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `categories_slug_unique` ON `categories` (`slug`);--> statement-breakpoint
+CREATE TABLE `category_fields` (
+	`id` integer PRIMARY KEY NOT NULL,
+	`category_id` integer NOT NULL,
+	`catalog_item_id` integer,
+	`slug` text NOT NULL,
+	`label` text NOT NULL,
+	`type` text DEFAULT 'text' NOT NULL,
+	`ref_category_id` integer,
+	`options` text,
+	`required` integer DEFAULT 0 NOT NULL,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`catalog_item_id`) REFERENCES `catalog_items`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`ref_category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE no action,
+	CONSTRAINT "category_fields_type_chk" CHECK("category_fields"."type" IN ('text','number','duration','enum','catalog_ref'))
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `category_fields_item_slug_uq` ON `category_fields` (`category_id`,`catalog_item_id`,`slug`) WHERE "category_fields"."catalog_item_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `category_fields_cat_slug_uq` ON `category_fields` (`category_id`,`slug`) WHERE "category_fields"."catalog_item_id" IS NULL;--> statement-breakpoint
+CREATE TABLE `claim_fields` (
+	`id` integer PRIMARY KEY NOT NULL,
+	`claim_id` integer NOT NULL,
+	`field_id` integer NOT NULL,
+	`value` text,
+	`value_catalog_item_id` integer,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`claim_id`) REFERENCES `event_claims`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`field_id`) REFERENCES `category_fields`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`value_catalog_item_id`) REFERENCES `catalog_items`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `claim_fields_claim_field_uq` ON `claim_fields` (`claim_id`,`field_id`);--> statement-breakpoint
 CREATE TABLE `coverage_spans` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`log_id` integer NOT NULL,
@@ -48,6 +80,14 @@ CREATE TABLE `sessions` (
 	`token` text PRIMARY KEY NOT NULL,
 	`user_id` integer NOT NULL,
 	`expires_at` text NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE TABLE `user_settings` (
+	`user_id` integer NOT NULL,
+	`key` text NOT NULL,
+	`value` text NOT NULL,
+	PRIMARY KEY(`user_id`, `key`),
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
