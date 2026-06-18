@@ -13,6 +13,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -44,6 +45,20 @@ export const sessions = sqliteTable("sessions", {
     .references(() => users.id),
   expiresAt: text("expires_at").notNull(),
 });
+
+// Per-user preferences as a generic key/value store. `value` is JSON-encoded
+// text so any type round-trips; the app owns the key vocabulary + defaults.
+export const userSettings = sqliteTable(
+  "user_settings",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    key: text("key").notNull(),
+    value: text("value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
 
 // --- generic video identity (NO pokemon_dex, NO run-status: those are domain) ---
 export const videos = sqliteTable("videos", {

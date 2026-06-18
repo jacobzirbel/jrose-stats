@@ -3,6 +3,7 @@
   <nav>
     @if (auth.user(); as user) {
       <span>{{ user.username }}</span>
+      <a routerLink="/settings">Settings</a>
       <button type="button" (click)="logout()">Log out</button>
     } @else if (auth.loaded()) {
       <a routerLink="/login">Log in</a>

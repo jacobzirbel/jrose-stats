@@ -21,6 +21,7 @@ import {
   videoLogs,
   videos,
 } from "../db/schema";
+import { validateLog } from "../validation";
 
 export const workbenchRoutes = new Hono<AppEnv>();
 
@@ -168,18 +169,38 @@ workbenchRoutes.post("/logs/:logId/claims", requireAuth, async (c) => {
   return c.json({ id: claim.id, catalogItemId, timestampSec, note, runId }, 201);
 });
 
+// --- submit (draft -> submitted) through the validator gate ----------------
+workbenchRoutes.post("/logs/:logId/submit", requireAuth, (c) => {
+  const user = c.get("user")!;
+  const logId = Number(c.req.param("logId"));
+
+  const log = ownedDraft(user.id, logId);
+  if (!log) return c.json({ error: "Log not found" }, 404);
+
+  const violations = validateLog(db, logId);
+  if (violations.length > 0) return c.json({ ok: false, violations }, 422);
+
+  db.update(videoLogs)
+    .set({ status: "submitted", submittedAt: sql`datetime('now')`, updatedAt: sql`datetime('now')` })
+    .where(eq(videoLogs.id, logId))
+    .run();
+
+  return c.json({ ok: true, status: "submitted" });
+});
+
 // --- delete a claim ---------------------------------------------------------
 workbenchRoutes.delete("/claims/:claimId", requireAuth, (c) => {
   const user = c.get("user")!;
   const claimId = Number(c.req.param("claimId"));
 
   // Only the owner of the claim's log may delete it.
-  const owned = db.get<{ id: number }>(sql`
+  // (raw `db.get(sql)` returns a positional array in drizzle bun-sqlite — use all()[0].)
+  const owned = db.all<{ id: number }>(sql`
     SELECT ec.id AS id
     FROM event_claims ec
     JOIN video_logs vl ON vl.id = ec.log_id
     WHERE ec.id = ${claimId} AND vl.user_id = ${user.id} AND vl.deleted_at IS NULL
-  `);
+  `)[0];
   if (!owned) return c.json({ error: "Claim not found" }, 404);
 
   db.delete(eventClaims).where(eq(eventClaims.id, claimId)).run(); // claim_run cascades

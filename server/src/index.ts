@@ -9,6 +9,7 @@ import { Hono } from "hono";
 
 import { type AppEnv, sessionContext } from "./auth/middleware";
 import { authRoutes } from "./routes/auth";
+import { settingsRoutes } from "./routes/settings";
 import { spineRoutes } from "./routes/spine";
 import { workbenchRoutes } from "./routes/workbench";
 
@@ -23,6 +24,7 @@ const api = new Hono<AppEnv>();
 api.route("/", authRoutes);
 api.route("/", spineRoutes);
 api.route("/", workbenchRoutes);
+api.route("/", settingsRoutes);
 app.route("/api", api);
 
 const port = Number(process.env.PORT ?? 3000);

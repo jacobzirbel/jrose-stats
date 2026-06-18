@@ -58,6 +58,19 @@ youtube-player {
   cursor: pointer;
 }
 
+.submit {
+  margin: 1rem 0;
+}
+.submit .ok {
+  color: #2e9e2e;
+  font-weight: 700;
+}
+.violations {
+  margin: 0 0 0.5rem;
+  padding-left: 1.2rem;
+  color: #cc3333;
+}
+
 /* search-as-you-type picker */
 .picker-backdrop {
   position: fixed;

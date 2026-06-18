@@ -74,6 +74,12 @@ export interface WorkbenchData {
   claims: Claim[];
 }
 
+export interface Violation {
+  code: string;
+  message: string;
+  claimId?: number | null;
+}
+
 /** mm:ss for a second offset. */
 export function clock(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));

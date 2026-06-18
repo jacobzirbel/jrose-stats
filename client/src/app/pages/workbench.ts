@@ -11,8 +11,16 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { YouTubePlayer } from '@angular/youtube-player';
 
+import { SettingsService } from '../settings.service';
 import { WorkbenchService } from '../workbench.service';
-import { clock, titleCase, type Category, type Claim, type WorkbenchData } from '../models';
+import {
+  clock,
+  titleCase,
+  type Category,
+  type Claim,
+  type Violation,
+  type WorkbenchData,
+} from '../models';
 
 /**
  * The workbench (Phase 1E). Keyboard-first logging: a category keybind drops a
@@ -77,6 +85,21 @@ import { clock, titleCase, type Category, type Claim, type WorkbenchData } from 
         </ul>
       }
 
+      <div class="submit">
+        @if (submitted()) {
+          <p class="ok">✓ Submitted.</p>
+        } @else {
+          @if (violations().length) {
+            <ul class="violations">
+              @for (v of violations(); track $index) {
+                <li>{{ v.message }}</li>
+              }
+            </ul>
+          }
+          <button type="button" (click)="submit()" [disabled]="submitting()">Submit log</button>
+        }
+      </div>
+
       @if (picker(); as p) {
         <div class="picker-backdrop" (click)="closePicker()"></div>
         <div class="picker">
@@ -108,6 +131,7 @@ import { clock, titleCase, type Category, type Claim, type WorkbenchData } from 
 })
 export class Workbench {
   private readonly api = inject(WorkbenchService);
+  private readonly settings = inject(SettingsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -121,6 +145,9 @@ export class Workbench {
   readonly selectedRunId = signal<number | null>(null);
   readonly picker = signal<{ category: Category; timestampSec: number } | null>(null);
   readonly search = signal('');
+  readonly violations = signal<Violation[]>([]);
+  readonly submitted = signal(false);
+  readonly submitting = signal(false);
 
   protected searchText = '';
 
@@ -151,6 +178,7 @@ export class Workbench {
       next: (d) => {
         this.data.set(d);
         this.claims.set(d.claims);
+        this.submitted.set(d.log.status === 'submitted');
         // Single-run video: attribute claims to that run automatically.
         if (d.runs.length === 1) this.selectedRunId.set(d.runs[0]!.id);
       },
@@ -179,6 +207,7 @@ export class Workbench {
 
   private openPicker(category: Category): void {
     const timestampSec = this.player()?.getCurrentTime() ?? 0;
+    if (this.settings.pauseOnPick()) this.player()?.pauseVideo();
     this.searchText = '';
     this.search.set('');
     this.picker.set({ category, timestampSec });
@@ -216,6 +245,27 @@ export class Workbench {
 
   seek(claim: Claim): void {
     this.player()?.seekTo(claim.timestampSec, true);
+  }
+
+  submit(): void {
+    const log = this.data()?.log;
+    if (!log) return;
+    this.submitting.set(true);
+    this.violations.set([]);
+    this.api.submit(log.id).subscribe({
+      next: () => {
+        this.submitted.set(true);
+        this.submitting.set(false);
+      },
+      error: (e) => {
+        this.violations.set(
+          e.status === 422 && e.error?.violations?.length
+            ? e.error.violations
+            : [{ code: 'error', message: 'Submit failed.' }],
+        );
+        this.submitting.set(false);
+      },
+    });
   }
 
   protected time = clock;
