@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   computed,
   inject,
@@ -11,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { YouTubePlayer } from '@angular/youtube-player';
 
+import { TimelineBar } from '../components/timeline-bar';
 import { SettingsService } from '../settings.service';
 import { WorkbenchService } from '../workbench.service';
 import {
@@ -33,14 +35,33 @@ import {
 @Component({
   selector: 'app-workbench',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, YouTubePlayer],
-  host: { '(document:keydown)': 'onKey($event)' },
+  imports: [FormsModule, RouterLink, YouTubePlayer, TimelineBar],
+  host: {
+    '(document:keydown)': 'onKey($event)',
+    '(document:focusin)': 'syncFocus()',
+  },
   template: `
     @if (data(); as d) {
       <p><a [routerLink]="backLink()">← back</a></p>
       <h1>Logging: {{ d.video.title ?? 'Video ' + d.video.id }}</h1>
 
-      <youtube-player [videoId]="d.video.youtubeId ?? ''" />
+      <div class="player" [class.youtube-focus]="youtubeFocused()">
+        <youtube-player [videoId]="d.video.youtubeId ?? ''" />
+      </div>
+      <div class="kbd-status" [class.to-youtube]="youtubeFocused()">
+        @if (youtubeFocused()) {
+          ▶ Keyboard is going to YouTube — click the page to use shortcuts
+        } @else {
+          ⌨ Shortcuts active — space play/pause · m/g/j/e tag
+        }
+      </div>
+
+      <app-timeline-bar
+        [items]="timelineItems()"
+        [durationSec]="d.video.durationSec"
+        [currentSec]="currentSec()"
+        (seek)="seekTo($event)"
+      />
 
       @if (d.runs.length > 1) {
         <div class="runbar">
@@ -148,6 +169,8 @@ export class Workbench {
   readonly violations = signal<Violation[]>([]);
   readonly submitted = signal(false);
   readonly submitting = signal(false);
+  /** True when the YouTube iframe holds keyboard focus (keys go to it, not us). */
+  readonly youtubeFocused = signal(false);
 
   protected searchText = '';
 
@@ -162,6 +185,18 @@ export class Workbench {
 
   readonly sortedClaims = computed(() =>
     [...this.claims()].sort((a, b) => a.timestampSec - b.timestampSec),
+  );
+
+  /** Playhead position, polled from the player for the timeline. */
+  readonly currentSec = signal(0);
+
+  /** Claims as timeline items (label resolved from the catalog). */
+  readonly timelineItems = computed(() =>
+    this.sortedClaims().map((c) => ({
+      id: c.id,
+      timestampSec: c.timestampSec,
+      label: this.itemLabel(c.catalogItemId),
+    })),
   );
 
   readonly filteredItems = computed(() => {
@@ -188,6 +223,15 @@ export class Workbench {
       },
     });
     this.api.catalog().subscribe((r) => this.categories.set(r.categories));
+
+    // Poll the playhead so the timeline marker tracks playback; also refresh the
+    // keyboard-focus indicator as a backstop to the focusin event.
+    const tick = setInterval(() => {
+      const t = this.player()?.getCurrentTime();
+      if (typeof t === 'number') this.currentSec.set(t);
+      this.syncFocus();
+    }, 500);
+    inject(DestroyRef).onDestroy(() => clearInterval(tick));
   }
 
   onKey(e: KeyboardEvent): void {
@@ -199,10 +243,31 @@ export class Workbench {
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
+    // Space = play/pause from anywhere on the page. (When the iframe has focus
+    // this handler doesn't fire — YouTube toggles natively — so it works either way.)
+    if (e.code === 'Space') {
+      e.preventDefault();
+      this.togglePlay();
+      return;
+    }
+
     const category = this.categories().find((c) => c.keybind === e.key);
     if (!category) return;
     e.preventDefault();
     this.openPicker(category);
+  }
+
+  /** Track whether the YouTube iframe holds keyboard focus (it's the page's only iframe). */
+  syncFocus(): void {
+    this.youtubeFocused.set(document.activeElement?.tagName === 'IFRAME');
+  }
+
+  private togglePlay(): void {
+    const p = this.player();
+    if (!p) return;
+    // YT.PlayerState.PLAYING === 1.
+    if (p.getPlayerState() === 1) p.pauseVideo();
+    else p.playVideo();
   }
 
   private openPicker(category: Category): void {
@@ -244,7 +309,11 @@ export class Workbench {
   }
 
   seek(claim: Claim): void {
-    this.player()?.seekTo(claim.timestampSec, true);
+    this.seekTo(claim.timestampSec);
+  }
+
+  seekTo(sec: number): void {
+    this.player()?.seekTo(sec, true);
   }
 
   submit(): void {

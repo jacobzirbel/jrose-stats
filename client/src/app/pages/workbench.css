@@ -1,6 +1,29 @@
 youtube-player {
   display: block;
-  margin: 0.5rem 0;
+}
+
+.player {
+  display: inline-block;
+  margin: 0.5rem 0 0;
+  border: 3px solid transparent;
+  line-height: 0;
+}
+.player.youtube-focus {
+  border-color: #e0a200;
+}
+
+.kbd-status {
+  display: inline-block;
+  margin: 4px 0 0.5rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+.kbd-status.to-youtube {
+  background: #fff3cd;
+  color: #7a5c00;
 }
 
 .runbar,
