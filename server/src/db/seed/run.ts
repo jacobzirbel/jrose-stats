@@ -1,14 +1,19 @@
 /**
  * Seed entry point: `bun run db:seed`.
  *   1B-1 (always): offline reference seed from the PokéAPI cache.
+ *   content (always): curated Jokes + Events catalog.
  *   1B-2 (if YOUTUBE_API_KEY + YOUTUBE_PLAYLIST_ID set): videos + run links.
  */
 import { db, sqlite } from "../client";
+import { seedContent } from "./content";
 import { seedReference } from "./reference";
 import { seedYoutube } from "./youtube";
 
 const ref = seedReference(db);
 console.log("✓ reference seed:", ref);
+
+const content = seedContent(db);
+console.log(`✓ content seed: ${content.jokes} jokes, ${content.events} events`);
 
 if (process.env.YOUTUBE_API_KEY && process.env.YOUTUBE_PLAYLIST_ID) {
   const yt = await seedYoutube(db);
