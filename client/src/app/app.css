@@ -1,0 +1,18 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #e5e5e5;
+}
+.topbar .brand {
+  font-weight: 700;
+  text-decoration: none;
+  color: inherit;
+}
+.topbar nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}

@@ -3,10 +3,10 @@ old-project/
 node_modules/
 
 # Build outputs
-/dist/
+dist/
 /out-tsc/
 /tmp/
-/.angular/
+.angular/
 
 # Environment variables
 .env
@@ -47,14 +47,14 @@ yarn-error.log*
 .env.bun
 
 # SQLite (WAL mode produces -wal / -shm sidecars)
-/data/
+data/
 *.db
 *.db-wal
 *.db-shm
 *.sqlite
 
 # Seed: commit the gzipped PokéAPI cache (.gz) + playlist json, NOT the raw 45MB dump
-seed/pokeapi-cache.json
+**/seed/pokeapi-cache.json
 
 # Angular-specific
 .angular/cache/
