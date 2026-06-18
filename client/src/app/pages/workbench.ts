@@ -24,13 +24,16 @@ import {
   type WorkbenchData,
 } from '../models';
 
+const SCRUB_SEC = 5;
+const RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
 /**
  * The workbench (Phase 1E). Keyboard-first logging: a category keybind drops a
- * claim at the current playhead, then a search-as-you-type picker chooses the
- * catalog item. Waypoints (my claims) list below; click a time to seek.
+ * claim at the playhead via a search picker; transport keys (space / arrows /
+ * speed) drive playback; a catalog sidebar reminds you what's still unlogged.
  *
- * NOTE: while the YouTube iframe itself has focus, keydown goes to it, not us —
- * click anywhere on the page (outside the player) to give keybinds focus.
+ * Transport/tag keys only fire while the PAGE holds focus — the banner shows
+ * when focus is in the YouTube iframe instead (full focus-capture is a TODO).
  */
 @Component({
   selector: 'app-workbench',
@@ -45,99 +48,141 @@ import {
       <p><a [routerLink]="backLink()">← back</a></p>
       <h1>Logging: {{ d.video.title ?? 'Video ' + d.video.id }}</h1>
 
-      <div class="player" [class.youtube-focus]="youtubeFocused()">
-        <youtube-player [videoId]="d.video.youtubeId ?? ''" />
-      </div>
-      <div class="kbd-status" [class.to-youtube]="youtubeFocused()">
-        @if (youtubeFocused()) {
-          ▶ Keyboard is going to YouTube — click the page to use shortcuts
-        } @else {
-          ⌨ Shortcuts active — space play/pause · m/g/j/e tag
-        }
-      </div>
+      <div class="wb">
+        <div class="wb-main">
+          <div class="player" [class.youtube-focus]="youtubeFocused()">
+            <youtube-player [videoId]="d.video.youtubeId ?? ''" />
+          </div>
+          <div class="kbd-status" [class.to-youtube]="youtubeFocused()">
+            @if (youtubeFocused()) {
+              ▶ Keyboard is going to YouTube — click the page to use shortcuts
+            } @else {
+              ⌨ Shortcuts active · space play/pause · ←/→ scrub {{ scrubSec }}s · ,/. speed
+              ({{ playbackRate() }}×)
+            }
+          </div>
 
-      <app-timeline-bar
-        [items]="timelineItems()"
-        [durationSec]="d.video.durationSec"
-        [currentSec]="currentSec()"
-        (seek)="seekTo($event)"
-      />
-
-      @if (d.runs.length > 1) {
-        <div class="runbar">
-          Tagging run:
-          @for (r of d.runs; track r.id) {
-            <button
-              type="button"
-              [class.active]="selectedRunId() === r.id"
-              (click)="selectedRunId.set(r.id)"
-            >
-              {{ name(r.name) }}
-            </button>
-          }
-        </div>
-      }
-
-      <p class="hint">
-        Press a key at the playhead to tag:
-        @for (c of categories(); track c.id) {
-          @if (c.keybind) {
-            <kbd>{{ c.keybind }}</kbd>
-            <span>{{ c.label }}</span>
-          }
-        }
-      </p>
-
-      <h2>Waypoints ({{ sortedClaims().length }})</h2>
-      @if (sortedClaims().length === 0) {
-        <p class="muted">No tags yet.</p>
-      } @else {
-        <ul class="waypoints">
-          @for (claim of sortedClaims(); track claim.id) {
-            <li>
-              <button type="button" class="ts" (click)="seek(claim)">{{ time(claim.timestampSec) }}</button>
-              <span>{{ itemLabel(claim.catalogItemId) }}</span>
-              @if (claim.runId && runName(d, claim.runId); as rn) {
-                <span class="muted">· {{ rn }}</span>
+          @if (d.runs.length > 1) {
+            <div class="runbar">
+              Tagging run:
+              @for (r of d.runs; track r.id) {
+                <button
+                  type="button"
+                  [class.active]="selectedRunId() === r.id"
+                  (click)="selectedRunId.set(r.id)"
+                >
+                  {{ name(r.name) }}
+                </button>
               }
-              <button type="button" class="del" (click)="remove(claim)">✕</button>
-            </li>
+            </div>
           }
-        </ul>
-      }
 
-      <div class="submit">
-        @if (submitted()) {
-          <p class="ok">✓ Submitted.</p>
-        } @else {
-          @if (violations().length) {
-            <ul class="violations">
-              @for (v of violations(); track $index) {
-                <li>{{ v.message }}</li>
+          <p class="hint">
+            Tag at playhead:
+            @for (c of categories(); track c.id) {
+              @if (c.keybind) {
+                <kbd>{{ c.keybind }}</kbd><span>{{ c.label }}</span>
+              }
+            }
+          </p>
+
+          <app-timeline-bar
+            [items]="timelineItems()"
+            [durationSec]="d.video.durationSec"
+            [currentSec]="currentSec()"
+            (seek)="seekTo($event)"
+          />
+
+          <h2>Waypoints ({{ sortedClaims().length }})</h2>
+          @if (sortedClaims().length === 0) {
+            <p class="muted">No tags yet.</p>
+          } @else {
+            <ul class="waypoints">
+              @for (claim of sortedClaims(); track claim.id) {
+                <li>
+                  <button type="button" class="ts" (click)="seek(claim)">{{ time(claim.timestampSec) }}</button>
+                  <span>{{ itemLabel(claim.catalogItemId) }}</span>
+                  @if (claim.runId && runName(d, claim.runId); as rn) {
+                    <span class="muted">· {{ rn }}</span>
+                  }
+                  <button type="button" class="del" (click)="remove(claim)">✕</button>
+                </li>
               }
             </ul>
           }
-          <button type="button" (click)="submit()" [disabled]="submitting()">Submit log</button>
-        }
+
+          <div class="submit">
+            @if (submitted()) {
+              <p class="ok">✓ Submitted.</p>
+            } @else {
+              @if (violations().length) {
+                <ul class="violations">
+                  @for (v of violations(); track $index) {
+                    <li>{{ v.message }}</li>
+                  }
+                </ul>
+              }
+              <button type="button" (click)="submit()" [disabled]="submitting()">Submit log</button>
+            }
+          </div>
+        </div>
+
+        <aside class="wb-side">
+          <h3>Catalog</h3>
+          @for (c of categories(); track c.id) {
+            <div class="cat">
+              <button type="button" class="cat-head" (click)="toggleCollapse(c.id)">
+                <span>{{ isCollapsed(c.id) ? '▸' : '▾' }} {{ c.label }}</span>
+                <span class="muted">{{ loggedCount(c) }}/{{ c.items.length }}</span>
+              </button>
+              @if (!isCollapsed(c.id)) {
+                <ul class="cat-items">
+                  @for (it of c.items; track it.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="cat-item"
+                        [class.logged]="claimedIds().has(it.id)"
+                        [title]="'Tag at ' + time(currentSec())"
+                        (click)="tagItem(it.id)"
+                      >
+                        {{ claimedIds().has(it.id) ? '✓ ' : '' }}{{ it.label }}
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="muted">none</li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </aside>
       </div>
 
       @if (picker(); as p) {
         <div class="picker-backdrop" (click)="closePicker()"></div>
         <div class="picker">
-          <div class="picker-head">
-            {{ p.category.label }} @ {{ time(p.timestampSec) }}
-          </div>
+          <div class="picker-head">{{ p.category.label }} @ {{ time(p.timestampSec) }}</div>
           <input
             #searchInput
             type="text"
             [(ngModel)]="searchText"
-            (ngModelChange)="search.set($event)"
-            (keydown.enter)="chooseFirst()"
+            (ngModelChange)="onSearch($event)"
+            (keydown.arrowdown)="onArrow(1, $event)"
+            (keydown.arrowup)="onArrow(-1, $event)"
+            (keydown.enter)="chooseActive()"
             placeholder="search…"
           />
           <ul class="picker-list">
-            @for (item of filteredItems(); track item.id) {
-              <li><button type="button" (click)="choose(item.id)">{{ item.label }}</button></li>
+            @for (item of filteredItems(); track item.id; let i = $index) {
+              <li>
+                <button type="button" [class.active]="i === activeIndex()" (click)="choose(item.id)">
+                  {{ item.label }}
+                  @if (claimedIds().has(item.id)) {
+                    <span class="logged">✓ logged</span>
+                  }
+                </button>
+              </li>
             } @empty {
               <li class="muted">no match</li>
             }
@@ -159,6 +204,8 @@ export class Workbench {
   private readonly player = viewChild(YouTubePlayer);
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
+  protected readonly scrubSec = SCRUB_SEC;
+
   readonly data = signal<WorkbenchData | null>(null);
   readonly notFound = signal(false);
   readonly categories = signal<Category[]>([]);
@@ -166,31 +213,33 @@ export class Workbench {
   readonly selectedRunId = signal<number | null>(null);
   readonly picker = signal<{ category: Category; timestampSec: number } | null>(null);
   readonly search = signal('');
+  readonly activeIndex = signal(0);
   readonly violations = signal<Violation[]>([]);
   readonly submitted = signal(false);
   readonly submitting = signal(false);
+  readonly playbackRate = signal(1);
+  /** Category ids whose sidebar section is collapsed (Moves starts collapsed). */
+  readonly collapsed = signal<ReadonlySet<number>>(new Set());
   /** True when the YouTube iframe holds keyboard focus (keys go to it, not us). */
   readonly youtubeFocused = signal(false);
 
   protected searchText = '';
 
-  /** itemId -> display label, built once per catalog load. */
   private readonly itemIndex = computed(() => {
     const map = new Map<number, string>();
-    for (const c of this.categories()) {
-      for (const it of c.items) map.set(it.id, it.label);
-    }
+    for (const c of this.categories()) for (const it of c.items) map.set(it.id, it.label);
     return map;
   });
+
+  /** Catalog items that already have a claim on this log (for "already logged" hints). */
+  readonly claimedIds = computed(() => new Set(this.claims().map((c) => c.catalogItemId)));
 
   readonly sortedClaims = computed(() =>
     [...this.claims()].sort((a, b) => a.timestampSec - b.timestampSec),
   );
 
-  /** Playhead position, polled from the player for the timeline. */
   readonly currentSec = signal(0);
 
-  /** Claims as timeline items (label resolved from the catalog). */
   readonly timelineItems = computed(() =>
     this.sortedClaims().map((c) => ({
       id: c.id,
@@ -214,7 +263,6 @@ export class Workbench {
         this.data.set(d);
         this.claims.set(d.claims);
         this.submitted.set(d.log.status === 'submitted');
-        // Single-run video: attribute claims to that run automatically.
         if (d.runs.length === 1) this.selectedRunId.set(d.runs[0]!.id);
       },
       error: (e) => {
@@ -222,10 +270,14 @@ export class Workbench {
         else this.notFound.set(true);
       },
     });
-    this.api.catalog().subscribe((r) => this.categories.set(r.categories));
+    this.api.catalog().subscribe((r) => {
+      this.categories.set(r.categories);
+      // Moves is huge (164) and rarely useful as a reminder — start it collapsed.
+      const moves = r.categories.find((c) => c.slug === 'moves');
+      if (moves) this.collapsed.set(new Set([moves.id]));
+    });
 
-    // Poll the playhead so the timeline marker tracks playback; also refresh the
-    // keyboard-focus indicator as a backstop to the focusin event.
+    // Poll the playhead (timeline marker) + refresh the keyboard-focus indicator.
     const tick = setInterval(() => {
       const t = this.player()?.getCurrentTime();
       if (typeof t === 'number') this.currentSec.set(t);
@@ -237,18 +289,29 @@ export class Workbench {
   onKey(e: KeyboardEvent): void {
     if (this.picker()) {
       if (e.key === 'Escape') this.closePicker();
-      return; // typing into the search box otherwise
+      return; // the picker input owns keys while open
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-    // Space = play/pause from anywhere on the page. (When the iframe has focus
-    // this handler doesn't fire — YouTube toggles natively — so it works either way.)
-    if (e.code === 'Space') {
-      e.preventDefault();
-      this.togglePlay();
-      return;
+    // Transport keys (work whenever the page holds focus).
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        return this.togglePlay();
+      case 'ArrowLeft':
+        e.preventDefault();
+        return this.scrub(-SCRUB_SEC);
+      case 'ArrowRight':
+        e.preventDefault();
+        return this.scrub(SCRUB_SEC);
+      case ',':
+        e.preventDefault();
+        return this.cycleRate(-1);
+      case '.':
+        e.preventDefault();
+        return this.cycleRate(1);
     }
 
     const category = this.categories().find((c) => c.keybind === e.key);
@@ -257,24 +320,41 @@ export class Workbench {
     this.openPicker(category);
   }
 
-  /** Track whether the YouTube iframe holds keyboard focus (it's the page's only iframe). */
   syncFocus(): void {
     this.youtubeFocused.set(document.activeElement?.tagName === 'IFRAME');
   }
 
+  // --- playback transport -----------------------------------------------------
   private togglePlay(): void {
     const p = this.player();
     if (!p) return;
-    // YT.PlayerState.PLAYING === 1.
     if (p.getPlayerState() === 1) p.pauseVideo();
-    else p.playVideo();
+    else p.playVideo(); // YT.PlayerState.PLAYING === 1
   }
 
+  private scrub(deltaSec: number): void {
+    const p = this.player();
+    if (!p) return;
+    p.seekTo(Math.max(0, (p.getCurrentTime() ?? 0) + deltaSec), true);
+  }
+
+  private cycleRate(dir: number): void {
+    const p = this.player();
+    if (!p) return;
+    let i = RATES.indexOf(p.getPlaybackRate?.() ?? this.playbackRate());
+    if (i < 0) i = RATES.indexOf(1);
+    i = Math.min(RATES.length - 1, Math.max(0, i + dir));
+    p.setPlaybackRate(RATES[i]!);
+    this.playbackRate.set(RATES[i]!);
+  }
+
+  // --- picker -----------------------------------------------------------------
   private openPicker(category: Category): void {
     const timestampSec = this.player()?.getCurrentTime() ?? 0;
     if (this.settings.pauseOnPick()) this.player()?.pauseVideo();
     this.searchText = '';
     this.search.set('');
+    this.activeIndex.set(0);
     this.picker.set({ category, timestampSec });
     setTimeout(() => this.searchInput()?.nativeElement.focus());
   }
@@ -283,22 +363,39 @@ export class Workbench {
     this.picker.set(null);
   }
 
-  chooseFirst(): void {
-    const first = this.filteredItems()[0];
-    if (first) this.choose(first.id);
+  onSearch(value: string): void {
+    this.search.set(value);
+    this.activeIndex.set(0);
+  }
+
+  onArrow(delta: number, e: Event): void {
+    e.preventDefault();
+    const n = this.filteredItems().length;
+    if (n) this.activeIndex.set(Math.min(n - 1, Math.max(0, this.activeIndex() + delta)));
+  }
+
+  chooseActive(): void {
+    const item = this.filteredItems()[this.activeIndex()];
+    if (item) this.choose(item.id);
   }
 
   choose(catalogItemId: number): void {
     const p = this.picker();
-    const log = this.data()?.log;
-    if (!p || !log) return;
+    if (!p) return;
     this.closePicker();
+    this.addClaim(catalogItemId, p.timestampSec);
+  }
+
+  /** Tag a catalog item from the sidebar at the current playhead. */
+  tagItem(catalogItemId: number): void {
+    this.addClaim(catalogItemId, this.player()?.getCurrentTime() ?? 0);
+  }
+
+  private addClaim(catalogItemId: number, timestampSec: number): void {
+    const log = this.data()?.log;
+    if (!log) return;
     this.api
-      .addClaim(log.id, {
-        catalogItemId,
-        timestampSec: p.timestampSec,
-        runId: this.selectedRunId(),
-      })
+      .addClaim(log.id, { catalogItemId, timestampSec, runId: this.selectedRunId() })
       .subscribe((claim) => this.claims.update((cs) => [...cs, claim]));
   }
 
@@ -316,6 +413,23 @@ export class Workbench {
     this.player()?.seekTo(sec, true);
   }
 
+  // --- sidebar ----------------------------------------------------------------
+  toggleCollapse(catId: number): void {
+    this.collapsed.update((s) => {
+      const next = new Set(s);
+      next.has(catId) ? next.delete(catId) : next.add(catId);
+      return next;
+    });
+  }
+  protected isCollapsed(catId: number): boolean {
+    return this.collapsed().has(catId);
+  }
+  protected loggedCount(c: Category): number {
+    const claimed = this.claimedIds();
+    return c.items.filter((it) => claimed.has(it.id)).length;
+  }
+
+  // --- submit -----------------------------------------------------------------
   submit(): void {
     const log = this.data()?.log;
     if (!log) return;
