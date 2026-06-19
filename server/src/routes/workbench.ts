@@ -291,6 +291,13 @@ workbenchRoutes.post("/logs/:logId/submit", requireAuth, (c) => {
     .where(eq(videoLogs.id, logId))
     .run();
 
+  // The log's claims leave draft and go on the record as `proposed`, awaiting a
+  // blind partner. (The agree/contest transitions are the Phase-2 process.)
+  db.update(eventClaims)
+    .set({ status: "proposed" })
+    .where(and(eq(eventClaims.logId, logId), eq(eventClaims.status, "draft")))
+    .run();
+
   return c.json({ ok: true, status: "submitted" });
 });
 

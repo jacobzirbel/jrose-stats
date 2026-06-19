@@ -151,6 +151,23 @@ export const coverageSpans = sqliteTable(
 
 // THE atom: one timestamped claim per row, pointing ONLY at a catalog_item.
 // No event_type, no move_id/gym_id. Category reached by join through catalog_items.
+//
+// `status` is the claim's LIFECYCLE (session 17). It does NOT encode who made the
+// claim — authority is a permission question (which role may drive which
+// transition), never a weight on the claim itself. The states:
+//   draft       logger is still working; not submitted (private to its log).
+//   proposed    submitted; one blind log on the record, awaiting its partner.
+//                 A reviewer's later observation that neither original log had
+//                 also enters here — it's just a fresh single-source claim.
+//   agreed      two independent blind logs matched on this assertion. Provisional
+//                 trust (deliberately softer than "confirmed" — two can both err).
+//   contested   someone flagged it wrong; sitting in the review queue, undecided.
+//   overturned  reviewed and judged incorrect — it had standing and was reversed.
+//   certified   a challenge failed / an admin vouched: hardened above `agreed`.
+//   retracted   withdrawn or struck.
+// Canonical = {agreed, certified}; the queue = {contested}; {overturned,retracted}
+// are excluded; {draft} never surfaces publicly. Who may move a claim between
+// these is enforced at the write path by role, not stored here.
 export const eventClaims = sqliteTable(
   "event_claims",
   {
@@ -163,6 +180,7 @@ export const eventClaims = sqliteTable(
       .references(() => catalogItems.id),
     timestampSec: real("timestamp_sec").notNull(),
     note: text("note"), // HUMAN annotation only; never structured data
+    status: text("status").notNull().default("draft"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -170,6 +188,10 @@ export const eventClaims = sqliteTable(
   (t) => [
     index("ix_claims_log").on(t.logId),
     index("ix_claims_catalog").on(t.catalogItemId),
+    check(
+      "event_claims_status_chk",
+      sql`${t.status} IN ('draft','proposed','agreed','contested','overturned','certified','retracted')`,
+    ),
   ],
 );
 
