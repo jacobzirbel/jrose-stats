@@ -25,6 +25,8 @@ export interface SpineVideo {
   youtubeId: string | null;
   runId: number;
   partNo: number;
+  loggerCount: number; // logger slots filled (0–2)
+  recordState: 'logging' | 'reconciling' | 'escalated' | 'live';
 }
 
 export interface PokemonDetail {

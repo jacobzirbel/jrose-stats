@@ -1,0 +1,45 @@
+<p><a routerLink="/">← The 151</a></p>
+
+@if (detail(); as d) {
+  <h1>#{{ d.dex }} {{ name(d.name) }}</h1>
+  <p>Status: <strong>{{ statusLabel[d.status] }}</strong></p>
+
+  <h2>Videos</h2>
+  @if (d.videos.length === 0) {
+    <p>No videos linked yet.</p>
+  } @else {
+    <ul class="videos">
+      @for (v of d.videos; track v.videoId + '-' + v.runId) {
+        <li>
+          <a [href]="videoUrl(v)" target="_blank" rel="noreferrer">
+            {{ v.title ?? 'Video ' + v.videoId }}
+          </a>
+          @if (isMultiPart(d, v)) {
+            <span class="part">(part {{ v.partNo }})</span>
+          }
+
+          <span class="slots" [class.open]="hasOpenSlot(v)" [title]="hasOpenSlot(v) ? 'Open logger slot — log it to help verify' : 'Both logger slots filled'">
+            👤 {{ v.loggerCount }}/2
+          </span>
+          <span class="state" [attr.data-state]="v.recordState">{{ stateLabel(v) }}</span>
+
+          @if (auth.user()) {
+            <a class="log-link" [routerLink]="['/log', v.videoId]">{{ hasOpenSlot(v) ? 'log (claim a slot)' : 'log' }}</a>
+          }
+          <a class="record-link" [routerLink]="['/run', v.runId]">view run</a>
+        </li>
+      }
+    </ul>
+    <p class="legend">
+      <strong>👤</strong> shows how many of the two logger slots are filled. A run publishes once
+      <em>both</em> are logged and the two logs agree — an <span class="open-eg">open slot</span>
+      is one you can claim to help.
+    </p>
+  }
+
+  @if (!auth.user()) {
+    <p><a routerLink="/login">Log in to log this run</a></p>
+  }
+} @else if (notFound()) {
+  <p>Not found.</p>
+}

@@ -10,42 +10,8 @@ import { STATUS_LABEL, titleCase, type PokemonDetail, type SpineVideo } from '..
   selector: 'app-pokemon-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink],
-  template: `
-    <p><a routerLink="/">← The 151</a></p>
-
-    @if (detail(); as d) {
-      <h1>#{{ d.dex }} {{ name(d.name) }}</h1>
-      <p>Status: <strong>{{ statusLabel[d.status] }}</strong></p>
-
-      <h2>Videos</h2>
-      @if (d.videos.length === 0) {
-        <p>No videos linked yet.</p>
-      } @else {
-        <ul>
-          @for (v of d.videos; track v.videoId + '-' + v.runId) {
-            <li>
-              <a [href]="videoUrl(v)" target="_blank" rel="noreferrer">
-                {{ v.title ?? 'Video ' + v.videoId }}
-              </a>
-              @if (isMultiPart(d, v)) {
-                <span>(part {{ v.partNo }})</span>
-              }
-              @if (auth.user()) {
-                <a class="log-link" [routerLink]="['/log', v.videoId]">log</a>
-              }
-              <a class="record-link" [routerLink]="['/run', v.runId]">record</a>
-            </li>
-          }
-        </ul>
-      }
-
-      @if (!auth.user()) {
-        <p><a routerLink="/login">Log in to log this run</a></p>
-      }
-    } @else if (notFound()) {
-      <p>Not found.</p>
-    }
-  `,
+  templateUrl: './pokemon-detail.html',
+  styleUrl: './pokemon-detail.css',
 })
 export class PokemonDetailPage {
   private readonly api = inject(SpineService);
@@ -72,5 +38,24 @@ export class PokemonDetailPage {
 
   protected isMultiPart(d: PokemonDetail, v: SpineVideo): boolean {
     return d.videos.filter((x) => x.runId === v.runId).length > 1;
+  }
+
+  /** A short human label for where the run's record sits. */
+  protected stateLabel(v: SpineVideo): string {
+    switch (v.recordState) {
+      case 'live':
+        return 'published';
+      case 'reconciling':
+        return 'reconciling';
+      case 'escalated':
+        return 'with an admin';
+      default:
+        return v.loggerCount >= 2 ? 'logging' : v.loggerCount === 1 ? 'needs a 2nd logger' : 'unlogged';
+    }
+  }
+
+  /** An open logger slot anyone can claim to push the run toward publishing. */
+  protected hasOpenSlot(v: SpineVideo): boolean {
+    return v.recordState !== 'live' && v.loggerCount < 2;
   }
 }

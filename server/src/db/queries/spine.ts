@@ -27,6 +27,8 @@ export interface SpineVideo {
   youtubeId: string | null;
   runId: number;
   partNo: number;
+  loggerCount: number; // logger slots filled (0–2); a video goes live once two loggers agree
+  recordState: string; // the run's record lifecycle: logging | reconciling | escalated | live
 }
 
 export interface PokemonDetail {
@@ -43,6 +45,27 @@ const STATUS_RANK = sql`CASE status
   WHEN 'impossible_abandoned' THEN 2
   ELSE 3 END`;
 
+// The most-progressed in-game status across a pokemon's runs (default untouched).
+const BASE_STATUS = sql`COALESCE((
+  SELECT r.status FROM runs r
+  WHERE r.pokemon_dex = p.dex
+  ORDER BY ${STATUS_RANK} LIMIT 1
+), 'untouched')`;
+
+// Has anyone started logging this pokemon's runs? (a claimed slot counts).
+const HAS_LOGS = sql`EXISTS (
+  SELECT 1 FROM video_logs vl
+  JOIN run_videos rv ON rv.video_id = vl.video_id
+  JOIN runs r2 ON r2.id = rv.run_id
+  WHERE r2.pokemon_dex = p.dex AND vl.deleted_at IS NULL
+)`;
+
+// Displayed status: a run that's been logged can't read as "untouched", so
+// promote it to at least "in_progress" (done/abandoned are kept as set).
+const DISPLAY_STATUS = sql`CASE
+  WHEN ${BASE_STATUS} = 'untouched' AND ${HAS_LOGS} THEN 'in_progress'
+  ELSE ${BASE_STATUS} END`;
+
 /** The 151 spine cells, sorted by dex (default) or playlist position. */
 export function getSpine(db: DB, sort: "dex" | "playlist" = "dex"): SpineCell[] {
   // Output-alias ORDER BY; NULL playlistPos (no video yet) sorts last.
@@ -51,11 +74,7 @@ export function getSpine(db: DB, sort: "dex" | "playlist" = "dex"): SpineCell[] 
     SELECT
       p.dex AS dex,
       p.name AS name,
-      COALESCE((
-        SELECT r.status FROM runs r
-        WHERE r.pokemon_dex = p.dex
-        ORDER BY ${STATUS_RANK} LIMIT 1
-      ), 'untouched') AS status,
+      ${DISPLAY_STATUS} AS status,
       (SELECT COUNT(*) FROM run_videos rv
         JOIN runs r ON r.id = rv.run_id
         WHERE r.pokemon_dex = p.dex) AS videoCount,
@@ -75,11 +94,7 @@ export function getPokemonDetail(db: DB, dex: number): PokemonDetail | null {
     SELECT
       p.dex AS dex,
       p.name AS name,
-      COALESCE((
-        SELECT r.status FROM runs r
-        WHERE r.pokemon_dex = p.dex
-        ORDER BY ${STATUS_RANK} LIMIT 1
-      ), 'untouched') AS status
+      ${DISPLAY_STATUS} AS status
     FROM pokemon p
     WHERE p.dex = ${dex} AND p.dex BETWEEN 1 AND 151
   `)[0];
@@ -92,7 +107,10 @@ export function getPokemonDetail(db: DB, dex: number): PokemonDetail | null {
       v.url AS url,
       v.youtube_id AS youtubeId,
       rv.run_id AS runId,
-      rv.part_no AS partNo
+      rv.part_no AS partNo,
+      (SELECT COUNT(*) FROM video_logs vl
+        WHERE vl.video_id = v.id AND vl.deleted_at IS NULL) AS loggerCount,
+      r.record_state AS recordState
     FROM run_videos rv
     JOIN runs r ON r.id = rv.run_id
     JOIN videos v ON v.id = rv.video_id

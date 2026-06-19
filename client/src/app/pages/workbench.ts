@@ -756,11 +756,14 @@ export class Workbench {
   private otherFieldView(fields: FieldValue[]): Map<string, { ident: string; display: string; label: string }> {
     const out = new Map<string, { ident: string; display: string; label: string }>();
     for (const fv of fields) {
+      // The slug isn't unique across item-scoped fields (mimic / mirror-move /
+      // metronome all use `copied-move`), so trust the field's OWN label that
+      // the canonical view already resolved — don't re-look it up by slug.
       const f = this.fieldBySlug().get(fv.slug);
       const ident = fv.valueCatalogItemId != null ? `c${fv.valueCatalogItemId}` : `v${fv.value ?? ''}`;
       const display =
         fv.valueLabel ?? (f?.type === 'duration' && fv.value != null ? clock(Number(fv.value)) : (fv.value ?? ''));
-      out.set(fv.slug, { ident, display, label: f?.label ?? fv.slug });
+      out.set(fv.slug, { ident, display, label: fv.label });
     }
     return out;
   }

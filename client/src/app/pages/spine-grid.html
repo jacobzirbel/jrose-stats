@@ -1,0 +1,52 @@
+<h1>The 151</h1>
+
+<section class="intro">
+  <p class="lead">A community-built record of all 151 runs — logged from the videos and verified before anything is published.</p>
+  <div class="how">
+    <div class="step">
+      <span class="n">1</span>
+      <p><strong>Two people log each run independently.</strong> Watching the video, they tag events, gyms, and details on their own — without seeing each other's work.</p>
+    </div>
+    <div class="step">
+      <span class="n">2</span>
+      <p><strong>The two logs are matched.</strong> Everything both loggers agree on becomes the canonical record and the run goes <em>live</em>.</p>
+    </div>
+    <div class="step">
+      <span class="n">3</span>
+      <p><strong>Disagreements get one reconciliation round.</strong> The loggers fix their own logs and resubmit; if they still don't agree, an admin settles it.</p>
+    </div>
+  </div>
+  <p class="cta">
+    Want to help? Open any Pokémon, find a video with an <span class="open-eg">open slot</span> (fewer
+    than 👤 2/2 loggers), and log it — a second logger is all a run needs to get verified.
+  </p>
+</section>
+
+<div class="toolbar">
+  Sort:
+  <button type="button" [class.active]="sort() === 'playlist'" (click)="setSort('playlist')">
+    Playlist
+  </button>
+  <button type="button" [class.active]="sort() === 'dex'" (click)="setSort('dex')">Dex</button>
+  <span class="hint">blue dot = has video · border color = run status</span>
+</div>
+
+<ul class="grid">
+  @for (cell of cells(); track cell.dex) {
+    <li>
+      <a
+        class="cell"
+        [attr.data-status]="cell.status"
+        [routerLink]="['/pokemon', cell.dex]"
+        [title]="label(cell)"
+      >
+        @if (cell.videoCount > 0) {
+          <span class="dot"></span>
+        }
+        <span class="dex">#{{ cell.dex }}</span>
+        <img [src]="sprite(cell.dex)" alt="" loading="lazy" />
+        <span class="name">{{ name(cell.name) }}</span>
+      </a>
+    </li>
+  }
+</ul>
