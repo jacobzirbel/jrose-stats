@@ -69,9 +69,11 @@ CREATE TABLE `event_claims` (
 	`catalog_item_id` integer NOT NULL,
 	`timestamp_sec` real NOT NULL,
 	`note` text,
+	`status` text DEFAULT 'draft' NOT NULL,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	FOREIGN KEY (`log_id`) REFERENCES `video_logs`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`catalog_item_id`) REFERENCES `catalog_items`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`catalog_item_id`) REFERENCES `catalog_items`(`id`) ON UPDATE no action ON DELETE no action,
+	CONSTRAINT "event_claims_status_chk" CHECK("event_claims"."status" IN ('draft','proposed','agreed','contested','overturned','certified','retracted'))
 );
 --> statement-breakpoint
 CREATE INDEX `ix_claims_log` ON `event_claims` (`log_id`);--> statement-breakpoint

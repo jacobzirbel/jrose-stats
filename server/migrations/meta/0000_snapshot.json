@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e3c455d4-3da3-4d0f-928c-ee80660cf2e1",
+  "id": "6ed05c70-1ecc-4ff7-a357-9b04de4c4c78",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "catalog_items": {
@@ -507,6 +507,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -562,7 +570,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "event_claims_status_chk": {
+          "name": "event_claims_status_chk",
+          "value": "\"event_claims\".\"status\" IN ('draft','proposed','agreed','contested','overturned','certified','retracted')"
+        }
+      }
     },
     "sessions": {
       "name": "sessions",
