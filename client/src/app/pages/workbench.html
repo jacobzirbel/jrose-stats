@@ -23,12 +23,42 @@
             <button
               type="button"
               [class.active]="selectedRunId() === r.id"
-              (click)="selectedRunId.set(r.id)"
+              (click)="setRun(r.id)"
             >
               {{ name(r.name) }}
             </button>
           }
         </div>
+      }
+
+      @if (showReconcile()) {
+        <section class="reconcile">
+          <h2>Reconcile with the other logger</h2>
+          @if (diffLines().length === 0) {
+            <p class="ok">
+              ✓ Your logs agree.
+              {{ submitted() ? 'The run will go live.' : 'Resubmit to publish.' }}
+            </p>
+          } @else {
+            <p class="muted">Your log and the other logger’s differ — check the tape and fix yours:</p>
+            <ul class="diffs">
+              @for (line of diffLines(); track $index) {
+                <li>
+                  <button type="button" class="ts" (click)="seekTo(line.seekSec)">▶ {{ time(line.seekSec) }}</button>
+                  <span>{{ line.text }}</span>
+                </li>
+              }
+            </ul>
+          }
+          @if (submitted()) {
+            <div class="reconcile-actions">
+              <button type="button" class="edit-mine" (click)="reopen()">Edit my log</button>
+              <button type="button" class="ghost" (click)="escalate()">Can’t agree? Send to an admin</button>
+            </div>
+          } @else {
+            <p class="editing-note">✎ Editing your log — if necessary, fix the differences above, then resubmit.</p>
+          }
+        </section>
       }
 
       <p class="hint">
@@ -62,10 +92,13 @@
               @if (claim.runId && runName(d, claim.runId); as rn) {
                 <span class="muted">· {{ rn }}</span>
               }
-              @if (!submitted() && hasFields(claim)) {
+              @if (editable() && hasFields(claim)) {
                 <button type="button" class="fields-edit" (click)="openFieldFlow(claim)" title="Edit details">✎</button>
               }
-              <button type="button" class="del" (click)="remove(claim)">✕</button>
+              @if (editable()) {
+                <button type="button" class="set-ts" (click)="retimeToPlayhead(claim)" title="Move to playhead">⏱</button>
+                <button type="button" class="del" (click)="remove(claim)">✕</button>
+              }
             </li>
           }
         </ul>
@@ -103,6 +136,7 @@
                     type="button"
                     class="cat-item"
                     [class.logged]="claimedIds().has(it.id)"
+                    [disabled]="!editable()"
                     [title]="'Tag at ' + time(currentSec())"
                     (click)="tagItem(it.id)"
                   >

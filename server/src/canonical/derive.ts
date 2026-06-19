@@ -57,6 +57,7 @@ export interface DeriveField {
 export interface DeriveClaim {
   id: number;
   logId: number;
+  videoId: number;
   userId: number;
   status: ClaimStatus;
   catalogItemId: number;
@@ -73,6 +74,7 @@ export interface DeriveConfig {
 export interface Supporter {
   claimId: number;
   logId: number;
+  videoId: number; // which video this claim was logged against (drives the jump-to seek)
   userId: number;
   status: ClaimStatus;
   timestampSec: number;
@@ -107,11 +109,21 @@ export interface OrderFact {
   standing: Standing;
   support: number;
   candidates: { catalogItemId: number; label: string; logIds: number[] }[];
+  fields: FieldValue[]; // collapsed field values (e.g. Brock's in-game time) — may diverge
   supporters: Supporter[];
+}
+
+export interface CanonicalVideo {
+  id: number;
+  youtubeId: string | null;
+  title: string | null;
+  durationSec: number | null;
 }
 
 export interface CanonicalRun {
   runId: number;
+  recordState: string; // logging | reconciling | escalated | live
+  videos: CanonicalVideo[]; // the run's source videos — embed + per-supporter seek target
   membership: MembershipFact[];
   order: OrderFact[];
   summary: { canonical: number; pending: number; contested: number; overturned: number; divergent: number };
@@ -131,10 +143,34 @@ function factStatus(statuses: ClaimStatus[]): { status: ResolvedStatus; divergen
 const toSupporter = (c: DeriveClaim): Supporter => ({
   claimId: c.id,
   logId: c.logId,
+  videoId: c.videoId,
   userId: c.userId,
   status: c.status,
   timestampSec: c.timestampSec,
 });
+
+// Collapse field values across a fact's claims by (slug, value-identity). Two
+// claims with the same value share a FieldValue (logIds merged); differing
+// values yield separate entries for the SAME slug — that's a visible disagreement.
+function collapseFields(group: DeriveClaim[]): FieldValue[] {
+  const fieldMap = new Map<string, FieldValue>();
+  for (const c of group) {
+    for (const f of c.fields) {
+      const key = `${f.slug}|${f.valueCatalogItemId != null ? `c:${f.valueCatalogItemId}` : `v:${f.value ?? ""}`}`;
+      const fv = fieldMap.get(key) ?? {
+        slug: f.slug,
+        label: f.label,
+        value: f.value,
+        valueCatalogItemId: f.valueCatalogItemId,
+        valueLabel: f.valueLabel,
+        logIds: [],
+      };
+      if (!fv.logIds.includes(c.logId)) fv.logIds.push(c.logId);
+      fieldMap.set(key, fv);
+    }
+  }
+  return [...fieldMap.values()].sort((a, b) => a.slug.localeCompare(b.slug));
+}
 
 function deriveMembership(claims: DeriveClaim[]): MembershipFact[] {
   const byItem = new Map<number, DeriveClaim[]>();
@@ -143,25 +179,6 @@ function deriveMembership(claims: DeriveClaim[]): MembershipFact[] {
   const facts: MembershipFact[] = [];
   for (const [catalogItemId, group] of byItem) {
     const { status, divergent } = factStatus(group.map((c) => c.status));
-
-    // collapse field values across the supporting claims by (slug, value-identity)
-    const fieldMap = new Map<string, FieldValue>();
-    for (const c of group) {
-      for (const f of c.fields) {
-        const key = `${f.slug}|${f.valueCatalogItemId != null ? `c:${f.valueCatalogItemId}` : `v:${f.value ?? ""}`}`;
-        const fv = fieldMap.get(key) ?? {
-          slug: f.slug,
-          label: f.label,
-          value: f.value,
-          valueCatalogItemId: f.valueCatalogItemId,
-          valueLabel: f.valueLabel,
-          logIds: [],
-        };
-        if (!fv.logIds.includes(c.logId)) fv.logIds.push(c.logId);
-        fieldMap.set(key, fv);
-      }
-    }
-
     facts.push({
       catalogItemId,
       categorySlug: group[0].categorySlug,
@@ -171,7 +188,7 @@ function deriveMembership(claims: DeriveClaim[]): MembershipFact[] {
       standing: standingBucket(status),
       support: new Set(group.map((c) => c.logId)).size,
       supporters: group.map(toSupporter).sort((a, b) => a.timestampSec - b.timestampSec),
-      fields: [...fieldMap.values()].sort((a, b) => a.slug.localeCompare(b.slug)),
+      fields: collapseFields(group),
     });
   }
   return facts.sort((a, b) => a.categorySlug.localeCompare(b.categorySlug) || a.label.localeCompare(b.label));
@@ -215,6 +232,7 @@ function deriveOrder(claims: DeriveClaim[]): OrderFact[] {
         standing: standingBucket(status),
         support: new Set(group.map((c) => c.logId)).size,
         candidates: [...candMap.values()],
+        fields: collapseFields(group),
         supporters: group.map(toSupporter).sort((a, b) => a.timestampSec - b.timestampSec),
       });
     }
@@ -223,7 +241,13 @@ function deriveOrder(claims: DeriveClaim[]): OrderFact[] {
 }
 
 /** Derive the canonical view for one run from its claims (draft/retracted filtered here). */
-export function deriveCanonical(runId: number, allClaims: DeriveClaim[], cfg: DeriveConfig): CanonicalRun {
+export function deriveCanonical(
+  runId: number,
+  allClaims: DeriveClaim[],
+  cfg: DeriveConfig,
+  recordState = "logging",
+  videos: CanonicalVideo[] = [],
+): CanonicalRun {
   const claims = allClaims.filter((c) => VISIBLE.has(c.status));
   const membership = deriveMembership(claims.filter((c) => !cfg.ordinalCategories.has(c.categorySlug)));
   const order = deriveOrder(claims.filter((c) => cfg.ordinalCategories.has(c.categorySlug)));
@@ -234,5 +258,5 @@ export function deriveCanonical(runId: number, allClaims: DeriveClaim[], cfg: De
     if (f.divergent) summary.divergent++;
   }
 
-  return { runId, membership, order, summary };
+  return { runId, recordState, videos, membership, order, summary };
 }

@@ -13,6 +13,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { YouTubePlayer } from '@angular/youtube-player';
 
 import { TimelineBar } from '../components/timeline-bar';
+import { CanonicalService, type CanonicalRun, type FieldValue } from '../canonical.service';
 import { SettingsService } from '../settings.service';
 import { WorkbenchService } from '../workbench.service';
 import {
@@ -32,6 +33,22 @@ const RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 /** A claim's metadata fields, walked one at a time as a keyboard-first queue. */
 type FieldFlow = { claim: Claim; fields: CategoryField[]; index: number };
+
+/** One plain-language difference between my log and the other logger's. */
+interface DiffLine {
+  text: string;
+  seekSec: number;
+}
+
+/** The other logger's claim, projected from the canonical view for comparison. */
+interface OtherClaim {
+  catalogItemId: number;
+  label: string;
+  categorySlug: string;
+  timestampSec: number;
+  position?: number;
+  fields: FieldValue[];
+}
 
 /**
  * The workbench (Phase 1E). Keyboard-first logging: a category keybind drops a
@@ -59,6 +76,7 @@ type FieldFlow = { claim: Claim; fields: CategoryField[]; index: number };
 })
 export class Workbench {
   private readonly api = inject(WorkbenchService);
+  private readonly canon = inject(CanonicalService);
   private readonly settings = inject(SettingsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -81,6 +99,13 @@ export class Workbench {
   readonly violations = signal<Violation[]>([]);
   readonly submitted = signal(false);
   readonly submitting = signal(false);
+
+  // --- reconciliation: the other logger's view, for the diff panel -----------
+  readonly canonical = signal<CanonicalRun | null>(null);
+  /** True once I've reopened my submitted log to edit it for reconciliation. */
+  readonly editing = signal(false);
+  /** Editing is allowed on a draft log: either first-time logging, or a reopened one. */
+  readonly editable = computed(() => !this.submitted());
   readonly playbackRate = signal(1);
   /** Category ids whose sidebar section is collapsed (Moves starts collapsed). */
   readonly collapsed = signal<ReadonlySet<number>>(new Set());
@@ -109,6 +134,123 @@ export class Workbench {
     const map = new Map<number, number>();
     for (const c of this.categories()) for (const it of c.items) map.set(it.id, c.id);
     return map;
+  });
+
+  /** catalog item id -> its category slug (to tell gyms from events in the diff). */
+  private readonly itemCatSlug = computed(() => {
+    const map = new Map<number, string>();
+    for (const c of this.categories()) for (const it of c.items) map.set(it.id, c.slug);
+    return map;
+  });
+
+  private readonly fieldBySlug = computed(() => new Map(this.fields().map((f) => [f.slug, f])));
+  private readonly fieldById = computed(() => new Map(this.fields().map((f) => [f.id, f])));
+
+  /** The OTHER logger's claims, projected from the canonical view. */
+  private readonly otherClaims = computed<OtherClaim[]>(() => {
+    const cv = this.canonical();
+    const myLog = this.data()?.log.id;
+    if (!cv || myLog == null) return [];
+    const out: OtherClaim[] = [];
+    for (const f of cv.membership) {
+      const sup = f.supporters.find((s) => s.logId !== myLog);
+      if (sup) {
+        out.push({
+          catalogItemId: f.catalogItemId,
+          label: f.label,
+          categorySlug: f.categorySlug,
+          timestampSec: sup.timestampSec,
+          fields: f.fields.filter((fv) => fv.logIds.includes(sup.logId)),
+        });
+      }
+    }
+    for (const o of cv.order) {
+      const sup = o.supporters.find((s) => s.logId !== myLog);
+      const cand = o.candidates.find((c) => sup && c.logIds.includes(sup.logId));
+      if (sup && cand) {
+        out.push({
+          catalogItemId: cand.catalogItemId,
+          label: cand.label,
+          categorySlug: o.categorySlug,
+          timestampSec: sup.timestampSec,
+          position: o.position,
+          fields: o.fields.filter((fv) => fv.logIds.includes(sup.logId)),
+        });
+      }
+    }
+    return out;
+  });
+
+  /** Both logs have been submitted and the run is being reconciled. */
+  private readonly reconciling = computed(() => {
+    const s = this.canonical()?.recordState;
+    return s === 'reconciling' || s === 'escalated';
+  });
+
+  /**
+   * Show the reconcile panel only AFTER both blind logs are in (reconciling) or
+   * once I've reopened mine to edit — never while a second logger is still
+   * drafting their first pass, so blind logging stays blind.
+   */
+  readonly showReconcile = computed(
+    () =>
+      this.canonical()?.recordState !== 'live' &&
+      this.otherClaims().length > 0 &&
+      (this.reconciling() || this.editing()),
+  );
+
+  /** Plain-language differences between my live log and the other logger's. */
+  readonly diffLines = computed<DiffLine[]>(() => {
+    if (!this.showReconcile()) return [];
+    const mine = this.claims();
+    const other = this.otherClaims();
+    const myItems = new Set(mine.map((c) => c.catalogItemId));
+    const otherItems = new Set(other.map((o) => o.catalogItemId));
+    const lines: DiffLine[] = [];
+
+    // presence: who has an item the other doesn't
+    for (const o of other) {
+      if (!myItems.has(o.catalogItemId)) {
+        lines.push({ text: `The other logger has “${this.name(o.label)}” — you don’t.`, seekSec: o.timestampSec });
+      }
+    }
+    for (const c of mine) {
+      if (!otherItems.has(c.catalogItemId)) {
+        lines.push({ text: `You logged “${this.itemLabel(c.catalogItemId)}” — the other didn’t.`, seekSec: c.timestampSec });
+      }
+    }
+
+    // gym order: compare the two sequences position by position
+    const myGyms = mine
+      .filter((c) => this.itemCatSlug().get(c.catalogItemId) === 'gyms')
+      .sort((a, b) => a.timestampSec - b.timestampSec);
+    const otherGyms = other.filter((o) => o.categorySlug === 'gyms').sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    for (let k = 0; k < Math.min(myGyms.length, otherGyms.length); k++) {
+      if (myGyms[k]!.catalogItemId !== otherGyms[k]!.catalogItemId) {
+        lines.push({
+          text: `Gym #${k + 1}: you have ${this.itemLabel(myGyms[k]!.catalogItemId)}, the other has ${this.name(otherGyms[k]!.label)}.`,
+          seekSec: myGyms[k]!.timestampSec,
+        });
+      }
+    }
+
+    // field values (mimicked move, Brock's time) on items both logged
+    for (const o of other) {
+      const myClaim = mine.find((c) => c.catalogItemId === o.catalogItemId);
+      if (!myClaim) continue;
+      const mineFv = this.myFieldView(myClaim);
+      const otherFv = this.otherFieldView(o.fields);
+      for (const [slug, ov] of otherFv) {
+        const mv = mineFv.get(slug);
+        if (mv && mv.ident !== ov.ident) {
+          lines.push({
+            text: `“${this.name(o.label)}” ${ov.label} differs — you: ${mv.display}, other: ${ov.display}.`,
+            seekSec: myClaim.timestampSec,
+          });
+        }
+      }
+    }
+    return lines;
   });
 
   /** Catalog items that already have a claim on this log (for "already logged" hints). */
@@ -162,6 +304,7 @@ export class Workbench {
         this.claims.set(d.claims);
         this.submitted.set(d.log.status === 'submitted');
         if (d.runs.length === 1) this.selectedRunId.set(d.runs[0]!.id);
+        this.loadCanonical();
       },
       error: (e) => {
         if (e.status === 401) this.router.navigateByUrl('/login');
@@ -255,6 +398,7 @@ export class Workbench {
 
   // --- claim picker -----------------------------------------------------------
   private openPicker(category: Category): void {
+    if (!this.editable()) return;
     const timestampSec = this.player()?.getCurrentTime() ?? 0;
     if (this.settings.pauseOnPick()) this.player()?.pauseVideo();
     this.searchText = '';
@@ -293,6 +437,7 @@ export class Workbench {
 
   /** Tag a catalog item from the sidebar at the current playhead. */
   tagItem(catalogItemId: number): void {
+    if (!this.editable()) return;
     this.addClaim(catalogItemId, this.player()?.getCurrentTime() ?? 0);
   }
 
@@ -309,6 +454,7 @@ export class Workbench {
   }
 
   remove(claim: Claim): void {
+    if (!this.editable()) return;
     this.api.deleteClaim(claim.id).subscribe(() => {
       this.claims.update((cs) => cs.filter((c) => c.id !== claim.id));
     });
@@ -533,6 +679,8 @@ export class Workbench {
       next: () => {
         this.submitted.set(true);
         this.submitting.set(false);
+        this.editing.set(false);
+        this.loadCanonical();
       },
       error: (e) => {
         this.violations.set(
@@ -543,6 +691,78 @@ export class Workbench {
         this.submitting.set(false);
       },
     });
+  }
+
+  // --- reconciliation ---------------------------------------------------------
+  private loadCanonical(): void {
+    const runId = this.selectedRunId();
+    if (runId == null) return;
+    this.canon.getRun(runId).subscribe({
+      next: (cv) => this.canonical.set(cv),
+      error: () => this.canonical.set(null),
+    });
+  }
+
+  /** Pick which run we're tagging / diffing against (multi-run videos). */
+  setRun(runId: number): void {
+    this.selectedRunId.set(runId);
+    this.loadCanonical();
+  }
+
+  /** Reopen my submitted log so I can edit it to reconcile. */
+  reopen(): void {
+    const log = this.data()?.log;
+    if (!log) return;
+    this.api.reopen(log.id).subscribe(() => {
+      this.submitted.set(false);
+      this.editing.set(true);
+      this.loadCanonical();
+    });
+  }
+
+  /** Re-timestamp a claim to the current playhead — fixes gym order during reconcile. */
+  retimeToPlayhead(claim: Claim): void {
+    if (!this.editable()) return;
+    const t = Math.floor(this.player()?.getCurrentTime() ?? 0);
+    this.api.setTimestamp(claim.id, t).subscribe(() => {
+      this.claims.update((cs) => cs.map((c) => (c.id === claim.id ? { ...c, timestampSec: t } : c)));
+    });
+  }
+
+  /** Fallback: hand the run to an admin when the loggers can't converge. */
+  protected escalate(): void {
+    const runId = this.selectedRunId();
+    if (runId == null) return;
+    this.canon.escalate(runId).subscribe(() => this.loadCanonical());
+  }
+
+  private myFieldView(claim: Claim): Map<string, { ident: string; display: string; label: string }> {
+    const out = new Map<string, { ident: string; display: string; label: string }>();
+    for (const fv of claim.fields ?? []) {
+      const f = this.fieldById().get(fv.fieldId);
+      if (!f) continue;
+      const ident = fv.valueCatalogItemId != null ? `c${fv.valueCatalogItemId}` : `v${fv.value ?? ''}`;
+      const display =
+        fv.valueCatalogItemId != null
+          ? this.itemLabel(fv.valueCatalogItemId)
+          : f.type === 'duration' && fv.value != null
+            ? clock(Number(fv.value))
+            : (fv.value ?? '');
+      out.set(f.slug, { ident, display, label: f.label });
+    }
+    return out;
+  }
+
+  private otherFieldView(fields: FieldValue[]): Map<string, { ident: string; display: string; label: string }> {
+    const out = new Map<string, { ident: string; display: string; label: string }>();
+    for (const fv of fields) {
+      const f = this.fieldBySlug().get(fv.slug);
+      const ident = fv.valueCatalogItemId != null ? `c${fv.valueCatalogItemId}` : `v${fv.value ?? ''}`;
+      const display =
+        fv.valueLabel ?? (f?.type === 'duration' && fv.value != null ? clock(Number(fv.value)) : (fv.value ?? ''));
+      out.set(fv.slug, { ident, display, label: f?.label ?? fv.slug });
+    }
+    return out;
   }
 
   protected time = clock;

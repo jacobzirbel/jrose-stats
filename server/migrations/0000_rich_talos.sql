@@ -110,6 +110,7 @@ CREATE TABLE `video_logs` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`user_id` integer NOT NULL,
 	`video_id` integer NOT NULL,
+	`slot` integer,
 	`status` text DEFAULT 'draft' NOT NULL,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
@@ -117,10 +118,12 @@ CREATE TABLE `video_logs` (
 	`deleted_at` text,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`video_id`) REFERENCES `videos`(`id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "video_logs_status_chk" CHECK("video_logs"."status" IN ('draft','submitted'))
+	CONSTRAINT "video_logs_status_chk" CHECK("video_logs"."status" IN ('draft','submitted')),
+	CONSTRAINT "video_logs_slot_chk" CHECK("video_logs"."slot" IS NULL OR "video_logs"."slot" IN (1,2))
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `video_logs_user_video_uq` ON `video_logs` (`user_id`,`video_id`) WHERE "video_logs"."deleted_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `video_logs_video_slot_uq` ON `video_logs` (`video_id`,`slot`) WHERE "video_logs"."deleted_at" IS NULL;--> statement-breakpoint
 CREATE TABLE `videos` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`title` text,
@@ -201,8 +204,10 @@ CREATE TABLE `runs` (
 	`pokemon_dex` integer NOT NULL,
 	`attempt_no` integer DEFAULT 1 NOT NULL,
 	`status` text DEFAULT 'untouched' NOT NULL,
+	`record_state` text DEFAULT 'logging' NOT NULL,
 	FOREIGN KEY (`pokemon_dex`) REFERENCES `pokemon`(`dex`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "runs_status_chk" CHECK("runs"."status" IN ('untouched','in_progress','done','impossible_abandoned'))
+	CONSTRAINT "runs_status_chk" CHECK("runs"."status" IN ('untouched','in_progress','done','impossible_abandoned')),
+	CONSTRAINT "runs_record_state_chk" CHECK("runs"."record_state" IN ('logging','reconciling','escalated','live'))
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `runs_pokemon_attempt_uq` ON `runs` (`pokemon_dex`,`attempt_no`);

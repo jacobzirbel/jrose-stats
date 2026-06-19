@@ -40,6 +40,19 @@ export class WorkbenchService {
     return this.http.delete(`/api/claims/${claimId}`);
   }
 
+  /** Reopen a submitted log for reconciliation edits (submitted -> draft). */
+  reopen(logId: number) {
+    return this.http.post<{ ok: boolean; status: string }>(`/api/logs/${logId}/reopen`, {});
+  }
+
+  /** Re-timestamp an existing claim (fixes order during reconciliation). */
+  setTimestamp(claimId: number, timestampSec: number) {
+    return this.http.put<{ id: number; timestampSec: number }>(
+      `/api/claims/${claimId}/timestamp`,
+      { timestampSec },
+    );
+  }
+
   /** Submit a draft through the validator gate. 422 body carries `violations`. */
   submit(logId: number) {
     return this.http.post<{ ok: boolean; status?: string; violations?: Violation[] }>(

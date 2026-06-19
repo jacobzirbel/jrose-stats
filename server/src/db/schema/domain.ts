@@ -38,13 +38,21 @@ export const runs = sqliteTable(
       .notNull()
       .references(() => pokemon.dex),
     attemptNo: integer("attempt_no").notNull().default(1), // supports re-attempts
-    status: text("status").notNull().default("untouched"),
+    status: text("status").notNull().default("untouched"), // IN-GAME progress (orthogonal)
+    // RECORD lifecycle (the contribution side, not the in-game run): a run is
+    // private to its two loggers + admins until it goes `live` — which needs
+    // both slots submitted AND every fact agreed (or admin cleanup).
+    recordState: text("record_state").notNull().default("logging"),
   },
   (t) => [
     unique("runs_pokemon_attempt_uq").on(t.pokemonDex, t.attemptNo),
     check(
       "runs_status_chk",
       sql`${t.status} IN ('untouched','in_progress','done','impossible_abandoned')`,
+    ),
+    check(
+      "runs_record_state_chk",
+      sql`${t.recordState} IN ('logging','reconciling','escalated','live')`,
     ),
   ],
 );

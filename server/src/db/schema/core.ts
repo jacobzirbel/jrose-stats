@@ -116,6 +116,9 @@ export const videoLogs = sqliteTable(
     videoId: integer("video_id")
       .notNull()
       .references(() => videos.id),
+    // Blind-pair SLOT: each video has exactly two (1, 2). A user claims a free
+    // slot on first open; only slot-holders may log. Frees on soft-delete.
+    slot: integer("slot"),
     status: text("status").notNull().default("draft"),
     createdAt: text("created_at")
       .notNull()
@@ -132,7 +135,12 @@ export const videoLogs = sqliteTable(
     uniqueIndex("video_logs_user_video_uq")
       .on(t.userId, t.videoId)
       .where(sql`${t.deletedAt} IS NULL`),
+    // One holder per (video, slot) among live logs — caps a video at 2 loggers.
+    uniqueIndex("video_logs_video_slot_uq")
+      .on(t.videoId, t.slot)
+      .where(sql`${t.deletedAt} IS NULL`),
     check("video_logs_status_chk", sql`${t.status} IN ('draft','submitted')`),
+    check("video_logs_slot_chk", sql`${t.slot} IS NULL OR ${t.slot} IN (1,2)`),
   ],
 );
 

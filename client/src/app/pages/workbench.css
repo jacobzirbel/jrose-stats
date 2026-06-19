@@ -136,7 +136,8 @@ youtube-player {
   color: #999;
   cursor: pointer;
 }
-.waypoints .fields-edit {
+.waypoints .fields-edit,
+.waypoints .set-ts {
   border: none;
   background: none;
   color: #2563eb;
@@ -149,6 +150,72 @@ youtube-player {
   background: #eef2ff;
   border-radius: 3px;
   padding: 0 5px;
+}
+
+/* reconcile panel: differences from the other logger */
+.reconcile {
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #f9d56e;
+  background: #fffbe9;
+  border-radius: 8px;
+}
+.reconcile h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.reconcile .ok {
+  color: #1e8e3e;
+  font-weight: 600;
+  margin: 0;
+}
+.reconcile .muted {
+  margin: 0 0 0.5rem;
+}
+.reconcile .diffs {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.6rem;
+}
+.reconcile .diffs li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+.reconcile .diffs .ts {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.reconcile-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.reconcile .edit-mine {
+  border: 1px solid #1e8e3e;
+  background: #fff;
+  color: #1e8e3e;
+  border-radius: 6px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+}
+.reconcile .ghost {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #777;
+  border-radius: 6px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+}
+.reconcile .editing-note {
+  margin: 0;
+  color: #b06000;
+  font-weight: 600;
 }
 
 .submit {

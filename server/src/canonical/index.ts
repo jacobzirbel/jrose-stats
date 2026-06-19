@@ -31,6 +31,7 @@ const STATUSES = new Set<ClaimStatus>([
 interface ClaimRow {
   id: number;
   logId: number;
+  videoId: number;
   userId: number;
   status: string;
   catalogItemId: number;
@@ -54,7 +55,9 @@ interface FieldRow {
  * reads honestly.
  */
 export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
-  const run = db.all<{ id: number }>(sql`SELECT id FROM runs WHERE id = ${runId}`)[0];
+  const run = db.all<{ id: number; recordState: string }>(
+    sql`SELECT id, record_state AS recordState FROM runs WHERE id = ${runId}`,
+  )[0];
   if (!run) return null;
 
   // ids of the claims attributed to this run (from submitted, non-deleted logs);
@@ -74,8 +77,8 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
   `;
 
   const claimRows = db.all<ClaimRow>(sql`
-    SELECT ec.id AS id, ec.log_id AS logId, vl.user_id AS userId, ec.status AS status,
-           ec.catalog_item_id AS catalogItemId, ec.timestamp_sec AS timestampSec,
+    SELECT ec.id AS id, ec.log_id AS logId, vl.video_id AS videoId, vl.user_id AS userId,
+           ec.status AS status, ec.catalog_item_id AS catalogItemId, ec.timestamp_sec AS timestampSec,
            cat.slug AS categorySlug, ci.label AS label
     FROM event_claims ec
     JOIN video_logs vl ON vl.id = ec.log_id
@@ -83,6 +86,16 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
     JOIN categories cat ON cat.id = ci.category_id
     WHERE ec.id IN (${runClaimIds})
     ORDER BY ec.log_id, ec.timestamp_sec
+  `);
+
+  // The run's source videos — embedded on the record/diff screens; each
+  // supporter carries its videoId so a jump button seeks the right one.
+  const videos = db.all<{ id: number; youtubeId: string | null; title: string | null; durationSec: number | null }>(sql`
+    SELECT v.id AS id, v.youtube_id AS youtubeId, v.title AS title, v.duration_sec AS durationSec
+    FROM videos v
+    JOIN run_videos rv ON rv.video_id = v.id
+    WHERE rv.run_id = ${runId}
+    ORDER BY rv.part_no, v.id
   `);
 
   const fieldRows = db.all<FieldRow>(sql`
@@ -101,6 +114,7 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
   const claims: DeriveClaim[] = claimRows.map((c) => ({
     id: c.id,
     logId: c.logId,
+    videoId: c.videoId,
     userId: c.userId,
     status: (STATUSES.has(c.status as ClaimStatus) ? c.status : "proposed") as ClaimStatus,
     catalogItemId: c.catalogItemId,
@@ -117,5 +131,5 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
   }));
 
   const cfg: DeriveConfig = { ordinalCategories: ORDINAL_CATEGORIES };
-  return deriveCanonical(runId, claims, cfg);
+  return deriveCanonical(runId, claims, cfg, run.recordState, videos);
 }

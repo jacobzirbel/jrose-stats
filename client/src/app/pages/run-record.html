@@ -1,0 +1,128 @@
+<p><a routerLink="/">← The 151</a></p>
+
+@if (run(); as r) {
+  <h1>Run #{{ r.runId }} — canonical record
+    <span class="state" [attr.data-state]="r.recordState">{{ r.recordState }}</span>
+  </h1>
+
+  @if (activeVideoId()) {
+    <div class="player">
+      <youtube-player [videoId]="activeVideoId()" (ready)="onPlayerReady()" />
+    </div>
+  }
+
+  <div class="summary">
+    <span class="badge" data-standing="canonical">{{ r.summary.canonical }} canonical</span>
+    <span class="badge" data-standing="pending">{{ r.summary.pending }} pending</span>
+    <span class="badge" data-standing="contested">{{ r.summary.contested }} contested</span>
+    <span class="badge" data-standing="overturned">{{ r.summary.overturned }} overturned</span>
+    @if (r.summary.divergent > 0) {
+      <span class="badge" data-standing="divergent">{{ r.summary.divergent }} divergent ⚠</span>
+    }
+  </div>
+
+  @if (r.recordState !== 'live') {
+    <p class="reconcile-banner">
+      This run is still being reconciled.
+      @if (r.videos[0]; as v) {
+        <a [routerLink]="['/log', v.id]">Reconcile your log →</a>
+      }
+    </p>
+  } @else if (!auth.user()) {
+    <p class="hint"><a routerLink="/login">Sign in</a> to review (contest / certify / overturn).</p>
+  }
+
+  <h2>Facts</h2>
+  @if (r.membership.length === 0) {
+    <p class="empty">No facts yet — a run opens once two people have logged it.</p>
+  } @else {
+    <ul class="facts">
+      @for (f of r.membership; track f.catalogItemId) {
+        <li class="fact" [class.divergent]="f.divergent">
+          <div class="fact-head">
+            <span class="badge" [attr.data-standing]="f.standing">{{ f.status }}</span>
+            <span class="label">{{ name(f.label) }}</span>
+            <span class="cat">{{ f.categorySlug }}</span>
+            <span class="support">{{ f.support }} {{ f.support === 1 ? 'log' : 'logs' }}</span>
+          </div>
+
+          @if (f.fields.length) {
+            <ul class="fields">
+              @for (fv of f.fields; track fv.slug + (fv.valueLabel ?? fv.value)) {
+                <li>{{ fv.label }}: <strong>{{ fv.valueLabel ?? fv.value }}</strong>
+                  <span class="muted">({{ fv.logIds.length }})</span></li>
+              }
+            </ul>
+          }
+
+          <div class="supporters">
+            @for (s of f.supporters; track s.claimId) {
+              <button class="chip jump" (click)="jump(s)" title="Jump to this moment">
+                ▶ log {{ s.logId }} · {{ s.status }} · {{ clock(s.timestampSec) }}
+              </button>
+            }
+          </div>
+
+          @if (auth.user() && r.recordState === 'live') {
+            <div class="actions">
+              <button (click)="review(f, 'contest')">Contest</button>
+              <button (click)="review(f, 'certify')">Certify</button>
+              <button (click)="review(f, 'overturn')">Overturn</button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  @if (r.order.length) {
+    <h2>Gym order</h2>
+    <ul class="facts">
+      @for (o of r.order; track o.categorySlug + '-' + o.position) {
+        <li class="fact" [class.divergent]="o.divergent">
+          <div class="fact-head">
+            <span class="badge" [attr.data-standing]="o.standing">{{ o.status }}</span>
+            <span class="pos">#{{ o.position }}</span>
+            <span class="label">
+              @for (c of o.candidates; track c.catalogItemId) {
+                <span class="cand">{{ name(c.label) }}<span class="muted"> ({{ c.logIds.length }})</span></span>
+              }
+            </span>
+          </div>
+          @if (o.fields.length) {
+            <ul class="fields">
+              @for (fv of o.fields; track fv.slug + (fv.valueLabel ?? fv.value)) {
+                <li>{{ fv.label }}: <strong>{{ fv.valueLabel ?? fv.value }}</strong>
+                  <span class="muted">({{ fv.logIds.length }})</span></li>
+              }
+            </ul>
+          }
+          <div class="supporters">
+            @for (s of o.supporters; track s.claimId) {
+              <button class="chip jump" (click)="jump(s)" title="Jump to this moment">
+                ▶ log {{ s.logId }} · {{ clock(s.timestampSec) }}
+              </button>
+            }
+          </div>
+          @if (auth.user() && r.recordState === 'live') {
+            <div class="actions">
+              <button (click)="review(o, 'contest')">Contest</button>
+              <button (click)="review(o, 'certify')">Certify</button>
+              <button (click)="review(o, 'overturn')">Overturn</button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+} @else if (gatedState(); as st) {
+  <h1>Run #{{ runId }}</h1>
+  <p class="empty">
+    This run isn't live yet (<strong>{{ st }}</strong>). Only its two loggers and admins
+    can see the details until it goes live.
+  </p>
+} @else if (notFound()) {
+  <p>Run not found.</p>
+} @else {
+  <p>Loading…</p>
+}

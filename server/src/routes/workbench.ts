@@ -25,6 +25,7 @@ import {
   videos,
 } from "../db/schema";
 import { validateLog } from "../validation";
+import { recomputeRecordState, runMatching } from "../canonical/match";
 
 export const workbenchRoutes = new Hono<AppEnv>();
 
@@ -117,19 +118,27 @@ workbenchRoutes.post("/logs/:videoId/open", requireAuth, (c) => {
     .get();
   if (!video) return c.json({ error: "Video not found" }, 404);
 
-  // One live log per (user, video); create a draft if none exists.
+  // One live log per (user, video). If the caller has none, claim a free slot
+  // (each video has exactly two; first-come). No slot → the pair is full.
   let log = db
-    .select({ id: videoLogs.id, status: videoLogs.status })
+    .select({ id: videoLogs.id, status: videoLogs.status, slot: videoLogs.slot })
     .from(videoLogs)
     .where(
       and(eq(videoLogs.userId, user.id), eq(videoLogs.videoId, videoId), isNull(videoLogs.deletedAt)),
     )
     .get();
   if (!log) {
+    const taken = db
+      .all<{ slot: number | null }>(
+        sql`SELECT slot FROM video_logs WHERE video_id = ${videoId} AND deleted_at IS NULL`,
+      )
+      .map((r) => r.slot);
+    const slot = [1, 2].find((s) => !taken.includes(s));
+    if (slot == null) return c.json({ error: "Both logger slots for this video are taken." }, 409);
     log = db
       .insert(videoLogs)
-      .values({ userId: user.id, videoId })
-      .returning({ id: videoLogs.id, status: videoLogs.status })
+      .values({ userId: user.id, videoId, slot })
+      .returning({ id: videoLogs.id, status: videoLogs.status, slot: videoLogs.slot })
       .get();
   }
 
@@ -291,14 +300,85 @@ workbenchRoutes.post("/logs/:logId/submit", requireAuth, (c) => {
     .where(eq(videoLogs.id, logId))
     .run();
 
-  // The log's claims leave draft and go on the record as `proposed`, awaiting a
-  // blind partner. (The agree/contest transitions are the Phase-2 process.)
+  // The log's claims leave draft and go on the record as `proposed`.
   db.update(eventClaims)
     .set({ status: "proposed" })
     .where(and(eq(eventClaims.logId, logId), eq(eventClaims.status, "draft")))
     .run();
 
+  // Run matching for every run this video hosts — if a blind partner has already
+  // submitted, shared assertions flip to `agreed` (ordinal disagreements contest).
+  const runIds = db.all<{ runId: number }>(sql`
+    SELECT rv.run_id AS runId FROM run_videos rv
+    JOIN video_logs vl ON vl.video_id = rv.video_id
+    WHERE vl.id = ${logId}
+  `);
+  for (const { runId } of runIds) {
+    runMatching(db, runId);
+    recomputeRecordState(db, runId);
+  }
+
   return c.json({ ok: true, status: "submitted" });
+});
+
+// --- reopen a submitted log for reconciliation edits (submitted -> draft) ---
+workbenchRoutes.post("/logs/:logId/reopen", requireAuth, (c) => {
+  const user = c.get("user")!;
+  const logId = Number(c.req.param("logId"));
+
+  const log = db.all<{ id: number }>(sql`
+    SELECT id FROM video_logs
+    WHERE id = ${logId} AND user_id = ${user.id} AND status = 'submitted' AND deleted_at IS NULL
+  `)[0];
+  if (!log) return c.json({ error: "Log not found" }, 404);
+
+  // A published run latches live; don't let a reopen desync it.
+  const live = db.all<{ one: number }>(sql`
+    SELECT 1 AS one FROM runs r
+    JOIN run_videos rv ON rv.run_id = r.id
+    JOIN video_logs vl ON vl.video_id = rv.video_id
+    WHERE vl.id = ${logId} AND r.record_state = 'live' LIMIT 1
+  `)[0];
+  if (live) return c.json({ error: "This run is already live." }, 409);
+
+  // Back to draft so the normal edit endpoints accept it. Claim statuses are
+  // left as-is (matching re-derives them on resubmit). With one log no longer
+  // submitted the run drops out of reconciling until it's resubmitted.
+  db.update(videoLogs)
+    .set({ status: "draft", updatedAt: sql`datetime('now')` })
+    .where(eq(videoLogs.id, logId))
+    .run();
+
+  const runIds = db.all<{ runId: number }>(sql`
+    SELECT rv.run_id AS runId FROM run_videos rv
+    JOIN video_logs vl ON vl.video_id = rv.video_id WHERE vl.id = ${logId}
+  `);
+  for (const { runId } of runIds) recomputeRecordState(db, runId);
+
+  return c.json({ ok: true, status: "draft" });
+});
+
+// --- re-timestamp a claim (fixes order; owner's draft only) -----------------
+workbenchRoutes.put("/claims/:claimId/timestamp", requireAuth, async (c) => {
+  const user = c.get("user")!;
+  const claimId = Number(c.req.param("claimId"));
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const timestampSec = Number(body.timestampSec);
+  if (!Number.isInteger(claimId) || !Number.isFinite(timestampSec) || timestampSec < 0) {
+    return c.json({ error: "A non-negative timestampSec is required." }, 400);
+  }
+
+  const claim = db.all<{ id: number; logId: number }>(sql`
+    SELECT ec.id AS id, ec.log_id AS logId
+    FROM event_claims ec
+    JOIN video_logs vl ON vl.id = ec.log_id
+    WHERE ec.id = ${claimId} AND vl.user_id = ${user.id} AND vl.status = 'draft' AND vl.deleted_at IS NULL
+  `)[0];
+  if (!claim) return c.json({ error: "Claim not found" }, 404);
+
+  db.update(eventClaims).set({ timestampSec }).where(eq(eventClaims.id, claimId)).run();
+  touchLog(claim.logId);
+  return c.json({ id: claimId, timestampSec });
 });
 
 // --- delete a claim ---------------------------------------------------------

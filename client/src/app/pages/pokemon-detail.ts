@@ -33,6 +33,7 @@ import { STATUS_LABEL, titleCase, type PokemonDetail, type SpineVideo } from '..
               @if (auth.user()) {
                 <a class="log-link" [routerLink]="['/log', v.videoId]">log</a>
               }
+              <a class="record-link" [routerLink]="['/run', v.runId]">record</a>
             </li>
           }
         </ul>

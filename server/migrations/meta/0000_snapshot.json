@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6ed05c70-1ecc-4ff7-a357-9b04de4c4c78",
+  "id": "813e3513-c151-4d0c-aeda-53a0c1e3bb19",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "catalog_items": {
@@ -781,6 +781,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "slot": {
+          "name": "slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -829,6 +836,15 @@
           ],
           "isUnique": true,
           "where": "\"video_logs\".\"deleted_at\" IS NULL"
+        },
+        "video_logs_video_slot_uq": {
+          "name": "video_logs_video_slot_uq",
+          "columns": [
+            "video_id",
+            "slot"
+          ],
+          "isUnique": true,
+          "where": "\"video_logs\".\"deleted_at\" IS NULL"
         }
       },
       "foreignKeys": {
@@ -865,6 +881,10 @@
         "video_logs_status_chk": {
           "name": "video_logs_status_chk",
           "value": "\"video_logs\".\"status\" IN ('draft','submitted')"
+        },
+        "video_logs_slot_chk": {
+          "name": "video_logs_slot_chk",
+          "value": "\"video_logs\".\"slot\" IS NULL OR \"video_logs\".\"slot\" IN (1,2)"
         }
       }
     },
@@ -1410,6 +1430,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'untouched'"
+        },
+        "record_state": {
+          "name": "record_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'logging'"
         }
       },
       "indexes": {
@@ -1443,6 +1471,10 @@
         "runs_status_chk": {
           "name": "runs_status_chk",
           "value": "\"runs\".\"status\" IN ('untouched','in_progress','done','impossible_abandoned')"
+        },
+        "runs_record_state_chk": {
+          "name": "runs_record_state_chk",
+          "value": "\"runs\".\"record_state\" IN ('logging','reconciling','escalated','live')"
         }
       }
     }

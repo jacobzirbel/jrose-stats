@@ -79,11 +79,20 @@ test("contested and overturned surface as their own standings", () => {
   expect(view().summary).toMatchObject({ contested: 1, overturned: 1 });
 });
 
-test("certified outranks agreed in the headline", () => {
+test("a fact whose claims disagree on status is flagged divergent (data-integrity guard)", () => {
+  // shouldn't happen in practice — claims on a fact move together — but if it does
+  // we surface it rather than silently rank a winner.
   claim(1, 1, 1, 100, "agreed");
   claim(2, 2, 1, 150, "certified");
-  expect(item(1).status).toBe("certified");
-  expect(item(1).standing).toBe("canonical");
+  expect(item(1).divergent).toBe(true);
+  expect(view().summary.divergent).toBe(1);
+});
+
+test("a fact whose claims share a status is not divergent", () => {
+  claim(1, 1, 1, 100, "agreed");
+  claim(2, 2, 1, 150, "agreed");
+  expect(item(1).divergent).toBe(false);
+  expect(view().summary.divergent).toBe(0);
 });
 
 test("draft and retracted claims are filtered out entirely", () => {
