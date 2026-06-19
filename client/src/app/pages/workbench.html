@@ -40,7 +40,11 @@
               {{ submitted() ? 'The run will go live.' : 'Resubmit to publish.' }}
             </p>
           } @else {
-            <p class="muted">Your log and the other logger’s differ — check the tape and fix yours:</p>
+            <p class="muted">
+              Your log and the other logger’s differ — check the tape and fix yours. This is the
+              one reconciliation round: resubmit in agreement to go live, otherwise the run goes
+              to an admin.
+            </p>
             <ul class="diffs">
               @for (line of diffLines(); track $index) {
                 <li>

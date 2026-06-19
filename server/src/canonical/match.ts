@@ -157,19 +157,23 @@ export function runMatching(db: DB, runId: number): void {
 }
 
 /**
- * Recompute a run's RECORD lifecycle. Runs after every status-moving event
- * (submit, concur/concede, review). The states:
+ * Recompute a run's RECORD lifecycle. ONE round of reconciliation only:
  *
  *   logging      < two slots submitted
- *   reconciling  both submitted, an UNRESOLVED fact remains, loggers still own it
- *   escalated    loggers handed off (explicit `escalate`); admin owns cleanup —
- *                stays here until clean, never auto-relaxes back to reconciling
+ *   reconciling  the blind logs are both in but disagree — the loggers' single
+ *                corrective round (they edit their own logs and resubmit)
+ *   escalated    that round didn't reach agreement — admin queue
  *   live         both submitted AND nothing unresolved
  *
- * Unresolved = `proposed` (one-sided, unconfirmed) or `contested` (flagged, in
- * the queue). `overturned`/`certified`/`agreed` are SETTLED verdicts and don't
- * block. `live` LATCHES: once published, a post-live contest shows on the record
- * but never un-publishes — so we bail early if the run is already live.
+ * The blind submit (from `logging`) that finds a diff opens `reconciling`. The
+ * NEXT time both are submitted with a diff — i.e. the corrective resubmit failed
+ * — it goes straight to `escalated`; there is no second logger round. Agreement
+ * at any point goes `live`. Reopening one log drops below two submitted but must
+ * NOT reset the round, so an in-progress `reconciling`/`escalated` is preserved
+ * while a logger edits. `live` LATCHES (a post-live contest never un-publishes).
+ *
+ * Unresolved = `proposed` (one-sided) or `contested` (flagged); `overturned`/
+ * `certified`/`agreed` are settled and don't block.
  */
 export function recomputeRecordState(db: DB, runId: number): void {
   const cur = db.all<{ s: string }>(sql`SELECT record_state AS s FROM runs WHERE id = ${runId}`)[0]?.s;
@@ -182,8 +186,11 @@ export function recomputeRecordState(db: DB, runId: number): void {
     WHERE rv.run_id = ${runId} AND vl.status = 'submitted' AND vl.deleted_at IS NULL
   `)[0].n;
 
-  let state: "logging" | "reconciling" | "escalated" | "live" = "logging";
-  if (submitted >= 2) {
+  let state: "logging" | "reconciling" | "escalated" | "live";
+  if (submitted < 2) {
+    // Mid-reopen: don't reset a round that's already underway.
+    state = cur === "reconciling" || cur === "escalated" ? (cur as "reconciling" | "escalated") : "logging";
+  } else {
     const diff = db.all<{ n: number }>(sql`
       SELECT COUNT(*) AS n
       FROM event_claims ec
@@ -196,9 +203,9 @@ export function recomputeRecordState(db: DB, runId: number): void {
           (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
         ) = ${runId}
     `)[0].n;
-    // Clean → live (both paths land here). Dirty → stay with admin if already
-    // escalated, else it's the loggers' round.
-    state = diff === 0 ? "live" : cur === "escalated" ? "escalated" : "reconciling";
+    // Agreement → live. A diff opens the ONE round from `logging`; a diff that
+    // survives that round (cur already reconciling/escalated) → admin queue.
+    state = diff === 0 ? "live" : cur === "logging" ? "reconciling" : "escalated";
   }
   db.run(sql`UPDATE runs SET record_state = ${state} WHERE id = ${runId}`);
 }

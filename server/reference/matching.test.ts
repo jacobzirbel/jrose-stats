@@ -160,6 +160,24 @@ test("escalated latches — a remaining diff keeps it with admin, not back to lo
   expect(recordState()).toBe("escalated"); // not 'reconciling'
 });
 
+test("one round only: a diff surviving the reconcile round escalates (no second round)", () => {
+  sqlite.run("UPDATE runs SET record_state='reconciling' WHERE id = 1"); // already had the blind round
+  claim(1, 1, 1, 100);
+  claim(2, 2, 1, 150); // agreed
+  claim(3, 1, 2, 200); // still one-sided = unresolved
+  runMatching(db, 1);
+  recomputeRecordState(db, 1);
+  expect(recordState()).toBe("escalated");
+});
+
+test("reopening one log mid-reconcile preserves the round (doesn't reset to logging)", () => {
+  sqlite.run("UPDATE runs SET record_state='reconciling' WHERE id = 1");
+  sqlite.run("UPDATE video_logs SET status='draft' WHERE id = 2"); // a logger reopened to edit
+  claim(1, 1, 1, 100);
+  recomputeRecordState(db, 1);
+  expect(recordState()).toBe("reconciling");
+});
+
 test("live latches — a post-live contest doesn't un-publish the run", () => {
   claim(1, 1, 1, 100);
   claim(2, 2, 1, 150);
