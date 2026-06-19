@@ -57,12 +57,24 @@ export interface CanonicalVideo {
   durationSec: number | null;
 }
 
+export interface ProposalView {
+  id: number;
+  catalogItemId: number;
+  categorySlug: string;
+  label: string;
+  timestampSec: number;
+  videoId: number;
+  proposedBy: string;
+  note: string | null;
+}
+
 export interface CanonicalRun {
   runId: number;
   recordState: RecordState;
   videos: CanonicalVideo[];
   membership: MembershipFact[];
   order: OrderFact[];
+  proposals: ProposalView[];
   summary: { canonical: number; pending: number; contested: number; overturned: number; divergent: number };
 }
 
@@ -86,5 +98,17 @@ export class CanonicalService {
       `/api/runs/${runId}/reconcile/escalate`,
       {},
     );
+  }
+
+  /** Propose a fact the loggers missed (enters as a pending proposal). */
+  propose(runId: number, body: { catalogItemId: number; videoId: number; timestampSec: number; note?: string }) {
+    return this.http.post<{ id: number; status: string }>(`/api/runs/${runId}/proposals`, body);
+  }
+  /** Admin: fold a proposal into the record / discard it. */
+  acceptProposal(id: number) {
+    return this.http.post<{ ok: boolean; status: string }>(`/api/proposals/${id}/accept`, {});
+  }
+  rejectProposal(id: number) {
+    return this.http.post<{ ok: boolean; status: string }>(`/api/proposals/${id}/reject`, {});
   }
 }

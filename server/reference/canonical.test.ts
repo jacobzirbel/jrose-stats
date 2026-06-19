@@ -143,3 +143,17 @@ test("gym order: an adjacent swap contests only the two swapped positions", () =
   expect(byPos(3).candidates).toHaveLength(2);
   expect(byPos(4).candidates).toHaveLength(1);
 });
+
+test("an accepted proposal folds into the record as a certified fact; pending ones are listed", () => {
+  // accepted proposal for joke-a (id 1), pending proposal for joke-b (id 2)
+  sqlite.run(
+    "INSERT INTO proposals (id,run_id,video_id,catalog_item_id,timestamp_sec,proposed_by,status) VALUES (1,1,1,1,300,1,'accepted'),(2,1,1,2,400,2,'pending')",
+  );
+  const v = view();
+  const accepted = v.membership.find((m) => m.catalogItemId === 1)!;
+  expect(accepted.status).toBe("certified"); // folded in as canonical
+  expect(accepted.standing).toBe("canonical");
+  // the pending one is listed separately, not yet a fact
+  expect(v.proposals.map((p) => p.catalogItemId)).toEqual([2]);
+  expect(v.membership.find((m) => m.catalogItemId === 2)).toBeUndefined();
+});

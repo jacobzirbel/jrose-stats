@@ -11,7 +11,14 @@
 import { sql } from "drizzle-orm";
 
 import type { DB } from "../db/client";
-import { type CanonicalRun, type ClaimStatus, type DeriveClaim, type DeriveConfig, deriveCanonical } from "./derive";
+import {
+  type CanonicalRun,
+  type ClaimStatus,
+  type DeriveClaim,
+  type DeriveConfig,
+  type ProposalView,
+  deriveCanonical,
+} from "./derive";
 
 export type { CanonicalRun } from "./derive";
 
@@ -130,6 +137,58 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
     })),
   }));
 
+  // Reviewer proposals: accepted ones fold into the record as certified facts
+  // (a synthetic single supporter); pending ones ride alongside for the UI.
+  const proposalRows = db.all<{
+    id: number;
+    catalogItemId: number;
+    categorySlug: string;
+    label: string;
+    timestampSec: number;
+    videoId: number;
+    proposedBy: string;
+    note: string | null;
+    status: string;
+  }>(sql`
+    SELECT pr.id AS id, pr.catalog_item_id AS catalogItemId, cat.slug AS categorySlug,
+           ci.label AS label, pr.timestamp_sec AS timestampSec, pr.video_id AS videoId,
+           u.username AS proposedBy, pr.note AS note, pr.status AS status
+    FROM proposals pr
+    JOIN catalog_items ci ON ci.id = pr.catalog_item_id
+    JOIN categories cat ON cat.id = ci.category_id
+    JOIN users u ON u.id = pr.proposed_by
+    WHERE pr.run_id = ${runId} AND pr.status IN ('pending', 'accepted')
+  `);
+
+  for (const p of proposalRows) {
+    if (p.status !== "accepted") continue;
+    claims.push({
+      id: -p.id, // synthetic — proposals have no event_claim row
+      logId: -p.id,
+      videoId: p.videoId,
+      userId: 0,
+      status: "certified",
+      catalogItemId: p.catalogItemId,
+      categorySlug: p.categorySlug,
+      label: p.label,
+      timestampSec: p.timestampSec,
+      fields: [],
+    });
+  }
+
+  const pendingProposals: ProposalView[] = proposalRows
+    .filter((p) => p.status === "pending")
+    .map((p) => ({
+      id: p.id,
+      catalogItemId: p.catalogItemId,
+      categorySlug: p.categorySlug,
+      label: p.label,
+      timestampSec: p.timestampSec,
+      videoId: p.videoId,
+      proposedBy: p.proposedBy,
+      note: p.note,
+    }));
+
   const cfg: DeriveConfig = { ordinalCategories: ORDINAL_CATEGORIES };
-  return deriveCanonical(runId, claims, cfg, run.recordState, videos);
+  return deriveCanonical(runId, claims, cfg, run.recordState, videos, pendingProposals);
 }

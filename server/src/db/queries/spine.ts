@@ -18,6 +18,7 @@ export interface SpineCell {
   status: RunStatus;
   videoCount: number;
   playlistPos: number | null;
+  liveRunId: number | null; // a published run to deep-link to; null if none yet
 }
 
 export interface SpineVideo {
@@ -60,11 +61,22 @@ const HAS_LOGS = sql`EXISTS (
   WHERE r2.pokemon_dex = p.dex AND vl.deleted_at IS NULL
 )`;
 
-// Displayed status: a run that's been logged can't read as "untouched", so
-// promote it to at least "in_progress" (done/abandoned are kept as set).
+// Does this pokemon have a published (live) run record?
+const HAS_LIVE = sql`EXISTS (
+  SELECT 1 FROM runs r3 WHERE r3.pokemon_dex = p.dex AND r3.record_state = 'live'
+)`;
+
+// Displayed status follows the record lifecycle, but a genuine outcome wins:
+//   abandoned/done set on the run  → kept
+//   a published (live) record      → done (it's finished + verified)
+//   logged but not yet published   → in_progress
+//   nothing logged                 → untouched
 const DISPLAY_STATUS = sql`CASE
-  WHEN ${BASE_STATUS} = 'untouched' AND ${HAS_LOGS} THEN 'in_progress'
-  ELSE ${BASE_STATUS} END`;
+  WHEN ${BASE_STATUS} = 'impossible_abandoned' THEN 'impossible_abandoned'
+  WHEN ${BASE_STATUS} = 'done' THEN 'done'
+  WHEN ${HAS_LIVE} THEN 'done'
+  WHEN ${HAS_LOGS} THEN 'in_progress'
+  ELSE 'untouched' END`;
 
 /** The 151 spine cells, sorted by dex (default) or playlist position. */
 export function getSpine(db: DB, sort: "dex" | "playlist" = "dex"): SpineCell[] {
@@ -81,7 +93,10 @@ export function getSpine(db: DB, sort: "dex" | "playlist" = "dex"): SpineCell[] 
       (SELECT MIN(v.playlist_pos) FROM run_videos rv
         JOIN runs r ON r.id = rv.run_id
         JOIN videos v ON v.id = rv.video_id
-        WHERE r.pokemon_dex = p.dex) AS playlistPos
+        WHERE r.pokemon_dex = p.dex) AS playlistPos,
+      (SELECT r.id FROM runs r
+        WHERE r.pokemon_dex = p.dex AND r.record_state = 'live'
+        ORDER BY r.id LIMIT 1) AS liveRunId
     FROM pokemon p
     WHERE p.dex BETWEEN 1 AND 151
     ORDER BY ${order}

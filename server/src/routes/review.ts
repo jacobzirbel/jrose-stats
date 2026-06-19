@@ -45,12 +45,17 @@ reviewRoutes.post("/claims/:claimId/review", requireAuth, async (c) => {
   `)[0];
   if (!claim || claim.runId == null) return c.json({ error: "Claim not found" }, 404);
 
-  // Review opens once the run is `live` (then anyone signed in may review).
-  // Before that, only an admin reviews — that's the `escalated` cleanup path.
   const user = c.get("user")!;
   const recordState = db.all<{ s: string }>(
     sql`SELECT record_state AS s FROM runs WHERE id = ${claim.runId}`,
   )[0]?.s;
+
+  // certify / overturn are ADMIN resolutions of a contest — never open review.
+  if ((target === "certified" || target === "overturned") && user.role !== "admin") {
+    return c.json({ error: "Certify and overturn are admin-only." }, 403);
+  }
+  // contest is open to anyone once the run is live; admins may also act earlier
+  // (the `escalated` cleanup path).
   if (recordState !== "live" && user.role !== "admin") {
     return c.json({ error: "Review opens once the run is live.", recordState }, 403);
   }

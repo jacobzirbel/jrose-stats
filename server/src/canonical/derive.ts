@@ -120,12 +120,25 @@ export interface CanonicalVideo {
   durationSec: number | null;
 }
 
+/** A reviewer-proposed missing fact awaiting an admin verdict (pending only). */
+export interface ProposalView {
+  id: number;
+  catalogItemId: number;
+  categorySlug: string;
+  label: string;
+  timestampSec: number;
+  videoId: number;
+  proposedBy: string;
+  note: string | null;
+}
+
 export interface CanonicalRun {
   runId: number;
   recordState: string; // logging | reconciling | escalated | live
   videos: CanonicalVideo[]; // the run's source videos — embed + per-supporter seek target
   membership: MembershipFact[];
   order: OrderFact[];
+  proposals: ProposalView[]; // pending reviewer proposals (accepted ones are folded into facts)
   summary: { canonical: number; pending: number; contested: number; overturned: number; divergent: number };
 }
 
@@ -247,6 +260,7 @@ export function deriveCanonical(
   cfg: DeriveConfig,
   recordState = "logging",
   videos: CanonicalVideo[] = [],
+  proposals: ProposalView[] = [],
 ): CanonicalRun {
   const claims = allClaims.filter((c) => VISIBLE.has(c.status));
   const membership = deriveMembership(claims.filter((c) => !cfg.ordinalCategories.has(c.categorySlug)));
@@ -258,5 +272,5 @@ export function deriveCanonical(
     if (f.divergent) summary.divergent++;
   }
 
-  return { runId, recordState, videos, membership, order, summary };
+  return { runId, recordState, videos, membership, order, proposals, summary };
 }

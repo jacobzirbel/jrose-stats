@@ -37,7 +37,7 @@
       <a
         class="cell"
         [attr.data-status]="cell.status"
-        [routerLink]="['/pokemon', cell.dex]"
+        [routerLink]="cell.liveRunId ? ['/run', cell.liveRunId] : ['/pokemon', cell.dex]"
         [title]="label(cell)"
       >
         @if (cell.videoCount > 0) {

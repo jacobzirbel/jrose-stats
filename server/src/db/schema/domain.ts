@@ -12,6 +12,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  index,
   integer,
   primaryKey,
   real,
@@ -20,7 +21,7 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
-import { catalogItems, eventClaims, videoLogs, videos } from "./core";
+import { catalogItems, eventClaims, users, videoLogs, videos } from "./core";
 
 export const pokemon = sqliteTable("pokemon", {
   dex: integer("dex").primaryKey(), // 0=MissingNo, 1..151 (explicit, not autoinc)
@@ -81,6 +82,38 @@ export const claimRun = sqliteTable("claim_run", {
     .notNull()
     .references(() => runs.id),
 });
+
+export const proposals = sqliteTable(
+  "proposals",
+  {
+    // A reviewer proposes a fact neither blind logger caught. It rides ALONGSIDE
+    // the event_claims (reviewers have no video_log of their own); an admin then
+    // accepts it into the canonical record or rejects it.
+    id: integer("id").primaryKey(),
+    runId: integer("run_id")
+      .notNull()
+      .references(() => runs.id),
+    videoId: integer("video_id")
+      .notNull()
+      .references(() => videos.id), // domain -> core; for the timestamp's context + jump
+    catalogItemId: integer("catalog_item_id")
+      .notNull()
+      .references(() => catalogItems.id), // domain -> core
+    timestampSec: real("timestamp_sec").notNull(),
+    proposedBy: integer("proposed_by")
+      .notNull()
+      .references(() => users.id), // domain -> core
+    note: text("note"),
+    status: text("status").notNull().default("pending"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [
+    index("ix_proposals_run").on(t.runId),
+    check("proposals_status_chk", sql`${t.status} IN ('pending','accepted','rejected')`),
+  ],
+);
 
 export const moves = sqliteTable("moves", {
   id: integer("id").primaryKey(), // PokéAPI id = domain identity

@@ -16,6 +16,7 @@ export interface SpineCell {
   status: RunStatus;
   videoCount: number;
   playlistPos: number | null;
+  liveRunId: number | null; // deep-link target for a published run
 }
 
 export interface SpineVideo {

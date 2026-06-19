@@ -178,3 +178,82 @@
 .actions button:hover {
   background: #f5f5f5;
 }
+
+/* propose a missing fact */
+.propose-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.propose-btn {
+  border: 1px solid #1a73e8;
+  color: #1a73e8;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.propose-btn:hover {
+  background: #e8f0fe;
+}
+.fact[data-standing='proposed'] {
+  border-color: #1a73e8;
+  border-style: dashed;
+}
+
+/* propose picker modal */
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+.picker {
+  position: fixed;
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, 92vw);
+  max-height: 70vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  padding: 0.75rem;
+}
+.picker-head {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.picker input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+.picker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.picker-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.picker-list button:hover {
+  background: #e8f0fe;
+}
+.picker .hint {
+  font-size: 0.78rem;
+  color: #888;
+  margin: 0.5rem 0 0;
+}

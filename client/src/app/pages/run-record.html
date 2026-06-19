@@ -29,7 +29,41 @@
       }
     </p>
   } @else if (!auth.user()) {
-    <p class="hint"><a routerLink="/login">Sign in</a> to review (contest / certify / overturn).</p>
+    <p class="hint"><a routerLink="/login">Sign in</a> to review (contest / propose).</p>
+  }
+
+  @if (auth.user() && r.recordState === 'live') {
+    <p class="propose-cta">
+      <button type="button" class="propose-btn" (click)="openPropose()">+ Propose a missing fact</button>
+      <span class="hint">spotted something the loggers missed? add it for an admin to confirm</span>
+    </p>
+  }
+
+  @if (r.proposals.length) {
+    <h2>Proposed additions <span class="muted">({{ r.proposals.length }})</span></h2>
+    <ul class="facts">
+      @for (p of r.proposals; track p.id) {
+        <li class="fact" data-standing="proposed">
+          <div class="fact-head">
+            <span class="badge" data-standing="pending">proposed</span>
+            <span class="label">{{ name(p.label) }}</span>
+            <span class="cat">{{ p.categorySlug }}</span>
+            <span class="support">by {{ p.proposedBy }}</span>
+          </div>
+          <div class="supporters">
+            <button class="chip jump" (click)="jumpProposal(p)" title="Jump to this moment">
+              ▶ {{ clock(p.timestampSec) }}
+            </button>
+          </div>
+          @if (isAdmin()) {
+            <div class="actions">
+              <button (click)="acceptProposal(p)">Accept</button>
+              <button (click)="rejectProposal(p)">Reject</button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
   }
 
   <h2>Facts</h2>
@@ -66,8 +100,10 @@
           @if (auth.user() && r.recordState === 'live') {
             <div class="actions">
               <button (click)="review(f, 'contest')">Contest</button>
-              <button (click)="review(f, 'certify')">Certify</button>
-              <button (click)="review(f, 'overturn')">Overturn</button>
+              @if (isAdmin()) {
+                <button (click)="review(f, 'certify')">Certify</button>
+                <button (click)="review(f, 'overturn')">Overturn</button>
+              }
             </div>
           }
         </li>
@@ -107,13 +143,38 @@
           @if (auth.user() && r.recordState === 'live') {
             <div class="actions">
               <button (click)="review(o, 'contest')">Contest</button>
-              <button (click)="review(o, 'certify')">Certify</button>
-              <button (click)="review(o, 'overturn')">Overturn</button>
+              @if (isAdmin()) {
+                <button (click)="review(o, 'certify')">Certify</button>
+                <button (click)="review(o, 'overturn')">Overturn</button>
+              }
             </div>
           }
         </li>
       }
     </ul>
+  }
+
+  @if (proposeOpen()) {
+    <div class="picker-backdrop" (click)="closePropose()"></div>
+    <div class="picker">
+      <div class="picker-head">Propose a fact at the current video time</div>
+      <input
+        type="text"
+        [(ngModel)]="proposeSearch"
+        (ngModelChange)="onProposeSearch($event)"
+        placeholder="search the catalog…"
+      />
+      <ul class="picker-list">
+        @for (it of proposeItems(); track it.id) {
+          <li>
+            <button type="button" (click)="propose(it)">{{ name(it.label) }} <span class="muted">{{ it.cat }}</span></button>
+          </li>
+        } @empty {
+          <li class="muted">no match</li>
+        }
+      </ul>
+      <p class="hint">Pause at the moment, then pick the item — it's proposed at that timestamp.</p>
+    </div>
   }
 } @else if (gatedState(); as st) {
   <h1>Run #{{ runId }}</h1>
