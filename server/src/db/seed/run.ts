@@ -7,10 +7,14 @@
 import { db, sqlite } from "../client";
 import { seedCategoryFields, seedContent } from "./content";
 import { seedReference } from "./reference";
+import { seedUsers } from "./users";
 import { seedYoutube } from "./youtube";
 
 const ref = seedReference(db);
 console.log("✓ reference seed:", ref);
+
+const userCount = await seedUsers(db);
+console.log(`✓ user seed: ${userCount} test accounts (admin/editor1/editor2/member, username=password)`);
 
 const content = seedContent(db);
 console.log(`✓ content seed: ${content.events} events`);

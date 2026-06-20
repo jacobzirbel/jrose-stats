@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { AuthService } from '../auth.service';
@@ -20,6 +20,12 @@ export class PokemonDetailPage {
 
   readonly detail = signal<PokemonDetail | null>(null);
   readonly notFound = signal(false);
+
+  /** Logging is the trust gate: only trusted loggers (or admins) may claim a slot. */
+  protected readonly canLog = computed(() => {
+    const role = this.auth.user()?.role;
+    return role === 'trusted' || role === 'admin';
+  });
 
   constructor() {
     const dex = Number(this.route.snapshot.paramMap.get('dex'));

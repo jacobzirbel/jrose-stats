@@ -23,8 +23,10 @@
           </span>
           <span class="state" [attr.data-state]="v.recordState">{{ stateLabel(v) }}</span>
 
-          @if (auth.user()) {
+          @if (canLog()) {
             <a class="log-link" [routerLink]="['/log', v.videoId]">{{ hasOpenSlot(v) ? 'log (claim a slot)' : 'log' }}</a>
+          } @else if (auth.user() && hasOpenSlot(v)) {
+            <span class="log-link muted" title="Logging is open to trusted loggers">trusted loggers only</span>
           }
           <a class="record-link" [routerLink]="['/run', v.runId]">view run</a>
         </li>
@@ -39,6 +41,8 @@
 
   @if (!auth.user()) {
     <p><a routerLink="/login">Log in to log this run</a></p>
+  } @else if (!canLog()) {
+    <p class="muted">Logging is open to trusted loggers. You can still view runs and weigh in once they're published.</p>
   }
 } @else if (notFound()) {
   <p>Not found.</p>

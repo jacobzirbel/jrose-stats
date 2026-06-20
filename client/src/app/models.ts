@@ -2,6 +2,9 @@
 
 export type RunStatus = 'untouched' | 'in_progress' | 'done' | 'impossible_abandoned';
 
+/** The role ladder (server: auth/roles.ts). member < trusted < admin. */
+export type Role = 'member' | 'trusted' | 'admin';
+
 export interface AuthUser {
   id: number;
   username: string;

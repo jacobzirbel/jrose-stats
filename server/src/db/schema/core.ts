@@ -35,7 +35,7 @@ export const users = sqliteTable(
       .notNull()
       .default(sql`(datetime('now'))`),
   },
-  (t) => [check("users_role_chk", sql`${t.role} IN ('member','editor','admin')`)],
+  (t) => [check("users_role_chk", sql`${t.role} IN ('member','trusted','admin')`)],
 );
 
 export const sessions = sqliteTable("sessions", {

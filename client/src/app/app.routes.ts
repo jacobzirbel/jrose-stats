@@ -7,6 +7,8 @@ import { Signup } from './pages/signup';
 import { Workbench } from './pages/workbench';
 import { SettingsPage } from './pages/settings';
 import { RunRecord } from './pages/run-record';
+import { AdminPage } from './pages/admin/admin';
+import { adminGuard } from './admin.guard';
 
 export const routes: Routes = [
   { path: '', component: SpineGrid },
@@ -16,5 +18,6 @@ export const routes: Routes = [
   { path: 'log/:videoId', component: Workbench },
   { path: 'run/:runId', component: RunRecord },
   { path: 'settings', component: SettingsPage },
+  { path: 'admin', component: AdminPage, canActivate: [adminGuard] },
   { path: '**', redirectTo: '' },
 ];

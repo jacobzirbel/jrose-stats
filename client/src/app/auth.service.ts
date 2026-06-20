@@ -16,18 +16,34 @@ export class AuthService {
   readonly user = signal<AuthUser | null>(null);
   readonly loaded = signal(false);
 
+  /** The in-flight /me request, so concurrent callers (boot + a route guard) share one. */
+  private mePromise: Promise<AuthUser | null> | null = null;
+
   /** Resolve the session cookie to a user on app boot. */
   loadMe(): void {
-    this.http.get<{ user: AuthUser | null }>('/api/me').subscribe({
-      next: (r) => {
-        this.user.set(r.user);
-        this.loaded.set(true);
-      },
-      error: () => {
-        this.user.set(null);
-        this.loaded.set(true);
-      },
-    });
+    void this.ensureLoaded();
+  }
+
+  /** Await the initial /me check; resolves to the current user (or null). Guards use this. */
+  ensureLoaded(): Promise<AuthUser | null> {
+    if (this.loaded()) return Promise.resolve(this.user());
+    if (!this.mePromise) {
+      this.mePromise = new Promise((resolve) => {
+        this.http.get<{ user: AuthUser | null }>('/api/me').subscribe({
+          next: (r) => {
+            this.user.set(r.user);
+            this.loaded.set(true);
+            resolve(r.user);
+          },
+          error: () => {
+            this.user.set(null);
+            this.loaded.set(true);
+            resolve(null);
+          },
+        });
+      });
+    }
+    return this.mePromise;
   }
 
   login(username: string, password: string) {

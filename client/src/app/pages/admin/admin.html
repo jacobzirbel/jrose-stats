@@ -1,0 +1,93 @@
+<h1>Admin</h1>
+
+@if (error()) {
+  <p class="error">{{ error() }}</p>
+}
+
+<section class="queue">
+  <h2>Task queue @if (queueCount()) { <span class="count">{{ queueCount() }}</span> }</h2>
+
+  @if (queue(); as q) {
+    <h3>Escalated runs <span class="muted">({{ q.escalatedRuns.length }})</span></h3>
+    <p class="hint">Blind logs disagreed and the loggers' one round didn't converge — resolve on the run page.</p>
+    @if (q.escalatedRuns.length) {
+      <ul class="list">
+        @for (r of q.escalatedRuns; track r.runId) {
+          <li>
+            <a [routerLink]="['/run', r.runId]">{{ titleCase(r.pokemonName) }}</a>
+            <span class="muted">run #{{ r.runId }}</span>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">Nothing escalated.</p>
+    }
+
+    <h3>Contested facts <span class="muted">({{ q.contestedFacts.length }})</span></h3>
+    <p class="hint">Flagged wrong and awaiting a certify / overturn.</p>
+    @if (q.contestedFacts.length) {
+      <ul class="list">
+        @for (f of q.contestedFacts; track f.runId + '·' + f.label) {
+          <li>
+            <a [routerLink]="['/run', f.runId]">{{ titleCase(f.pokemonName) }}</a>
+            <span class="label">{{ f.label }}</span>
+            <span class="muted">{{ f.category }} · {{ clock(f.timestampSec) }}</span>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">No contested facts.</p>
+    }
+
+    <h3>Pending proposals <span class="muted">({{ q.pendingProposals.length }})</span></h3>
+    <p class="hint">Missing facts a reviewer spotted — accept (certify) or reject on the run page.</p>
+    @if (q.pendingProposals.length) {
+      <ul class="list">
+        @for (p of q.pendingProposals; track p.id) {
+          <li>
+            <a [routerLink]="['/run', p.runId]">{{ titleCase(p.pokemonName) }}</a>
+            <span class="label">{{ p.label }}</span>
+            <span class="muted">by {{ p.proposedBy }} · {{ clock(p.timestampSec) }}</span>
+            @if (p.note) {
+              <span class="note">“{{ p.note }}”</span>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">No pending proposals.</p>
+    }
+  } @else {
+    <p class="empty">Loading…</p>
+  }
+</section>
+
+<section class="users">
+  <h2>Users <span class="muted">({{ users().length }})</span></h2>
+  <table>
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Email</th>
+        <th>Points</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (u of users(); track u.id) {
+        <tr>
+          <td>{{ u.username }}</td>
+          <td class="muted">{{ u.email }}</td>
+          <td>{{ u.points }}</td>
+          <td>
+            <select [attr.aria-label]="'Role for ' + u.username" (change)="onRoleChange(u, $event)">
+              @for (r of roles; track r) {
+                <option [value]="r" [selected]="r === u.role">{{ r }}</option>
+              }
+            </select>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

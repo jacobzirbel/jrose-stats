@@ -1,7 +1,8 @@
 /**
- * Workbench API (Phase 1E): the logging surface. All write routes require auth
- * and verify the target log belongs to the caller. Reads of the catalog are
- * open (the vocabulary isn't secret); the draft + claims are per-user.
+ * Workbench API (Phase 1E): the logging surface. All write routes require a
+ * TRUSTED logger (the trust gate) and verify the target log belongs to the
+ * caller. Reads of the catalog are open (the vocabulary isn't secret); the
+ * draft + claims are per-user.
  *
  *   GET  /api/catalog                 categories + their active items
  *   POST /api/logs/:videoId/open      ensure a draft log, return the bootstrap
@@ -12,7 +13,7 @@ import { Hono } from "hono";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 
-import { type AppEnv, requireAuth } from "../auth/middleware";
+import { type AppEnv, requireTrusted } from "../auth/middleware";
 import { db } from "../db/client";
 import {
   catalogItems,
@@ -101,7 +102,7 @@ workbenchRoutes.get("/catalog", (c) => {
 });
 
 // --- open / ensure the caller's draft for a video --------------------------
-workbenchRoutes.post("/logs/:videoId/open", requireAuth, (c) => {
+workbenchRoutes.post("/logs/:videoId/open", requireTrusted, (c) => {
   const user = c.get("user")!;
   const videoId = Number(c.req.param("videoId"));
   if (!Number.isInteger(videoId)) return c.json({ error: "Bad video id" }, 400);
@@ -197,7 +198,7 @@ workbenchRoutes.post("/logs/:videoId/open", requireAuth, (c) => {
 });
 
 // --- drop a claim (a waypoint) ---------------------------------------------
-workbenchRoutes.post("/logs/:logId/claims", requireAuth, async (c) => {
+workbenchRoutes.post("/logs/:logId/claims", requireTrusted, async (c) => {
   const user = c.get("user")!;
   const logId = Number(c.req.param("logId"));
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -228,7 +229,7 @@ workbenchRoutes.post("/logs/:logId/claims", requireAuth, async (c) => {
 });
 
 // --- set a claim's metadata field values (replace-all) ---------------------
-workbenchRoutes.put("/claims/:claimId/fields", requireAuth, async (c) => {
+workbenchRoutes.put("/claims/:claimId/fields", requireTrusted, async (c) => {
   const user = c.get("user")!;
   const claimId = Number(c.req.param("claimId"));
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -285,7 +286,7 @@ workbenchRoutes.put("/claims/:claimId/fields", requireAuth, async (c) => {
 });
 
 // --- submit (draft -> submitted) through the validator gate ----------------
-workbenchRoutes.post("/logs/:logId/submit", requireAuth, (c) => {
+workbenchRoutes.post("/logs/:logId/submit", requireTrusted, (c) => {
   const user = c.get("user")!;
   const logId = Number(c.req.param("logId"));
 
@@ -322,7 +323,7 @@ workbenchRoutes.post("/logs/:logId/submit", requireAuth, (c) => {
 });
 
 // --- reopen a submitted log for reconciliation edits (submitted -> draft) ---
-workbenchRoutes.post("/logs/:logId/reopen", requireAuth, (c) => {
+workbenchRoutes.post("/logs/:logId/reopen", requireTrusted, (c) => {
   const user = c.get("user")!;
   const logId = Number(c.req.param("logId"));
 
@@ -359,7 +360,7 @@ workbenchRoutes.post("/logs/:logId/reopen", requireAuth, (c) => {
 });
 
 // --- re-timestamp a claim (fixes order; owner's draft only) -----------------
-workbenchRoutes.put("/claims/:claimId/timestamp", requireAuth, async (c) => {
+workbenchRoutes.put("/claims/:claimId/timestamp", requireTrusted, async (c) => {
   const user = c.get("user")!;
   const claimId = Number(c.req.param("claimId"));
   const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
@@ -382,7 +383,7 @@ workbenchRoutes.put("/claims/:claimId/timestamp", requireAuth, async (c) => {
 });
 
 // --- delete a claim ---------------------------------------------------------
-workbenchRoutes.delete("/claims/:claimId", requireAuth, (c) => {
+workbenchRoutes.delete("/claims/:claimId", requireTrusted, (c) => {
   const user = c.get("user")!;
   const claimId = Number(c.req.param("claimId"));
 
