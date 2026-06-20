@@ -17,7 +17,7 @@ import { inArray, sql } from "drizzle-orm";
 import type { DB } from "../db/client";
 import { eventClaims } from "../db/schema/core";
 
-const ORDINAL = new Set(["gyms"]);
+const ORDINAL = new Set(["battles"]);
 
 type Status = "proposed" | "agreed" | "contested" | "overturned" | "certified";
 // HUMAN verdicts are sticky — matching never overwrites them. Everything else

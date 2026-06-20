@@ -69,7 +69,7 @@ export interface DeriveClaim {
 }
 
 export interface DeriveConfig {
-  ordinalCategories: Set<string>; // category slugs whose facts are ordinal (e.g. {"gyms"})
+  ordinalCategories: Set<string>; // category slugs whose facts are ordinal (e.g. {"battles"})
 }
 
 export interface Supporter {

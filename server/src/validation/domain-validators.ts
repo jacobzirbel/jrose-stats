@@ -91,18 +91,25 @@ export class LearnsetValidator implements ClaimValidator {
 }
 
 /**
- * Owns the Gyms category, PER RUN. For each run on the video: if `done`, all 8
- * distinct gyms must be present; duplicates are rejected; `impossible_abandoned`
- * waives the completeness check. Multi-run videos judge each run independently.
+ * Owns the Battles category, PER RUN, for gym completeness. Gyms are now battle
+ * catalog items flagged in the domain `gyms` table (the merge keeps CORE
+ * gym-blind). For each run on the video: if `done`, all 8 distinct gyms must be
+ * present; duplicates are rejected; `impossible_abandoned` waives completeness.
+ * Multi-run videos judge each run independently.
  */
 export class GymCompletenessValidator implements ClaimValidator {
-  static readonly OWNS = "gyms";
+  static readonly OWNS = "battles";
   static readonly REQUIRED_GYMS = 8;
 
   constructor(private readonly db: DB) {}
 
   validate(ctx: ValidationContext): Violation[] {
-    const gymClaims = ctx.claims.filter((c) => c.categorySlug === GymCompletenessValidator.OWNS);
+    // The gym battles among the combined Battles category — those bridged into
+    // the domain `gyms` table. Non-gym battles (rivals, Elite Four) are ignored.
+    const gymItemIds = new Set(
+      this.db.all<{ id: number }>(sql`SELECT catalog_item_id AS id FROM gyms`).map((r) => r.id),
+    );
+    const gymClaims = ctx.claims.filter((c) => gymItemIds.has(c.catalogItemId));
     const runs = videoRuns(this.db, ctx.video.id);
     const multiRun = runs.length > 1;
     const out: Violation[] = [];

@@ -5,6 +5,7 @@ CREATE TABLE `catalog_items` (
 	`label` text NOT NULL,
 	`description` text,
 	`status` text DEFAULT 'proposed' NOT NULL,
+	`sort_order` integer DEFAULT 0 NOT NULL,
 	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "catalog_items_status_chk" CHECK("catalog_items"."status" IN ('proposed','active','retired'))
 );
@@ -32,6 +33,7 @@ CREATE TABLE `category_fields` (
 	`ref_category_id` integer,
 	`options` text,
 	`required` integer DEFAULT 0 NOT NULL,
+	`is_identity` integer DEFAULT 0 NOT NULL,
 	`sort_order` integer DEFAULT 0 NOT NULL,
 	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`catalog_item_id`) REFERENCES `catalog_items`(`id`) ON UPDATE no action ON DELETE no action,
@@ -101,7 +103,7 @@ CREATE TABLE `users` (
 	`role` text DEFAULT 'member' NOT NULL,
 	`points` integer DEFAULT 0 NOT NULL,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
-	CONSTRAINT "users_role_chk" CHECK("users"."role" IN ('member','editor','admin'))
+	CONSTRAINT "users_role_chk" CHECK("users"."role" IN ('member','trusted','admin'))
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);--> statement-breakpoint
@@ -178,6 +180,24 @@ CREATE TABLE `pokemon_moves` (
 	FOREIGN KEY (`move_id`) REFERENCES `moves`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE TABLE `proposals` (
+	`id` integer PRIMARY KEY NOT NULL,
+	`run_id` integer NOT NULL,
+	`video_id` integer NOT NULL,
+	`catalog_item_id` integer NOT NULL,
+	`timestamp_sec` real NOT NULL,
+	`proposed_by` integer NOT NULL,
+	`note` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	FOREIGN KEY (`run_id`) REFERENCES `runs`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`video_id`) REFERENCES `videos`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`catalog_item_id`) REFERENCES `catalog_items`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`proposed_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
+	CONSTRAINT "proposals_status_chk" CHECK("proposals"."status" IN ('pending','accepted','rejected'))
+);
+--> statement-breakpoint
+CREATE INDEX `ix_proposals_run` ON `proposals` (`run_id`);--> statement-breakpoint
 CREATE TABLE `run_stats` (
 	`log_id` integer NOT NULL,
 	`run_id` integer NOT NULL,

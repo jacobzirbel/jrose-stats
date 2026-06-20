@@ -25,7 +25,7 @@ beforeEach(() => {
   migrate(db, { migrationsFolder: "./migrations" });
 
   sqlite.run("INSERT INTO users (id,username,email,password_hash) VALUES (1,'a','a','h'),(2,'b','b','h')");
-  sqlite.run("INSERT INTO categories (id,slug,label) VALUES (1,'events','Events'),(2,'gyms','Gyms')");
+  sqlite.run("INSERT INTO categories (id,slug,label) VALUES (1,'events','Events'),(2,'battles','Battles')");
   sqlite.run("INSERT INTO catalog_items (id,category_id,slug,label,status) VALUES (1,1,'joke-a','Joke A','active'),(2,1,'joke-b','Joke B','active')");
   for (let g = 1; g <= 3; g++) {
     sqlite.run("INSERT INTO catalog_items (id,category_id,slug,label,status) VALUES (?,2,?,?,'active')", [10 + g, `gym${g}`, `Gym ${g}`]);

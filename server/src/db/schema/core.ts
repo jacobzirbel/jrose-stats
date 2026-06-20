@@ -74,7 +74,7 @@ export const videos = sqliteTable("videos", {
 // --- category config (core defines the shape; domain SEEDS the rows) --------
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey(),
-  slug: text("slug").notNull().unique(), // 'moves','gyms','jokes','battles'
+  slug: text("slug").notNull().unique(), // 'moves','battles','events'
   label: text("label").notNull(),
   keybind: text("keybind"), // single key, user-rebindable, nullable
   icon: text("icon"),
@@ -95,6 +95,9 @@ export const catalogItems = sqliteTable(
     label: text("label").notNull(),
     description: text("description"),
     status: text("status").notNull().default("proposed"),
+    // Display order within a category (the Battles sequence, etc.). 0 = unordered
+    // (falls back to label) — moves/events stay alphabetical; battles seed 0..n.
+    sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [
     unique("catalog_items_category_slug_uq").on(t.categoryId, t.slug),

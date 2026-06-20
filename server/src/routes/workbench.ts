@@ -54,7 +54,7 @@ workbenchRoutes.get("/catalog", (c) => {
     })
     .from(catalogItems)
     .where(sql`${catalogItems.status} <> 'retired'`)
-    .orderBy(asc(catalogItems.label))
+    .orderBy(asc(catalogItems.sortOrder), asc(catalogItems.label))
     .all();
 
   const byCategory = new Map<number, typeof items>();

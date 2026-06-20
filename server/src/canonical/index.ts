@@ -1,6 +1,6 @@
 /**
  * Composition root for canonical derivation — the one place that knows BOTH the
- * generic transform (`./derive`) and the domain (gyms are ordinal). Mirrors the
+ * generic transform (`./derive`) and the domain (battles are ordinal). Mirrors the
  * validation layer's split: core stays Pokémon-blind, the domain wiring lives
  * here.
  *
@@ -23,7 +23,7 @@ import {
 export type { CanonicalRun } from "./derive";
 
 /** Category slugs whose facts are ordinal (sequence-valued), not membership. */
-const ORDINAL_CATEGORIES = new Set(["gyms"]);
+const ORDINAL_CATEGORIES = new Set(["battles"]);
 
 const STATUSES = new Set<ClaimStatus>([
   "draft",

@@ -136,7 +136,7 @@ export class Workbench {
     return map;
   });
 
-  /** catalog item id -> its category slug (to tell gyms from events in the diff). */
+  /** catalog item id -> its category slug (to tell battles from events in the diff). */
   private readonly itemCatSlug = computed(() => {
     const map = new Map<number, string>();
     for (const c of this.categories()) for (const it of c.items) map.set(it.id, c.slug);
@@ -220,16 +220,16 @@ export class Workbench {
       }
     }
 
-    // gym order: compare the two sequences position by position
-    const myGyms = mine
-      .filter((c) => this.itemCatSlug().get(c.catalogItemId) === 'gyms')
+    // battle order: compare the two sequences position by position (gyms folded in)
+    const myBattles = mine
+      .filter((c) => this.itemCatSlug().get(c.catalogItemId) === 'battles')
       .sort((a, b) => a.timestampSec - b.timestampSec);
-    const otherGyms = other.filter((o) => o.categorySlug === 'gyms').sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    for (let k = 0; k < Math.min(myGyms.length, otherGyms.length); k++) {
-      if (myGyms[k]!.catalogItemId !== otherGyms[k]!.catalogItemId) {
+    const otherBattles = other.filter((o) => o.categorySlug === 'battles').sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    for (let k = 0; k < Math.min(myBattles.length, otherBattles.length); k++) {
+      if (myBattles[k]!.catalogItemId !== otherBattles[k]!.catalogItemId) {
         lines.push({
-          text: `Gym #${k + 1}: you have ${this.itemLabel(myGyms[k]!.catalogItemId)}, the other has ${this.name(otherGyms[k]!.label)}.`,
-          seekSec: myGyms[k]!.timestampSec,
+          text: `Battle #${k + 1}: you have ${this.itemLabel(myBattles[k]!.catalogItemId)}, the other has ${this.name(otherBattles[k]!.label)}.`,
+          seekSec: myBattles[k]!.timestampSec,
         });
       }
     }

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "85321fb3-a1c1-4fa8-b722-4a3441b9a8a9",
+  "id": "ac931744-0627-4210-9538-ed784aa807d5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "catalog_items": {
@@ -49,6 +49,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'proposed'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {
@@ -224,6 +232,14 @@
         },
         "required": {
           "name": "required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_identity": {
+          "name": "is_identity",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -753,7 +769,7 @@
       "checkConstraints": {
         "users_role_chk": {
           "name": "users_role_chk",
-          "value": "\"users\".\"role\" IN ('member','editor','admin')"
+          "value": "\"users\".\"role\" IN ('member','trusted','admin')"
         }
       }
     },
@@ -1243,6 +1259,147 @@
       },
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "proposals": {
+      "name": "proposals",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "video_id": {
+          "name": "video_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "catalog_item_id": {
+          "name": "catalog_item_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "timestamp_sec": {
+          "name": "timestamp_sec",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "proposed_by": {
+          "name": "proposed_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        }
+      },
+      "indexes": {
+        "ix_proposals_run": {
+          "name": "ix_proposals_run",
+          "columns": [
+            "run_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "proposals_run_id_runs_id_fk": {
+          "name": "proposals_run_id_runs_id_fk",
+          "tableFrom": "proposals",
+          "tableTo": "runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "proposals_video_id_videos_id_fk": {
+          "name": "proposals_video_id_videos_id_fk",
+          "tableFrom": "proposals",
+          "tableTo": "videos",
+          "columnsFrom": [
+            "video_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "proposals_catalog_item_id_catalog_items_id_fk": {
+          "name": "proposals_catalog_item_id_catalog_items_id_fk",
+          "tableFrom": "proposals",
+          "tableTo": "catalog_items",
+          "columnsFrom": [
+            "catalog_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "proposals_proposed_by_users_id_fk": {
+          "name": "proposals_proposed_by_users_id_fk",
+          "tableFrom": "proposals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "proposed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "proposals_status_chk": {
+          "name": "proposals_status_chk",
+          "value": "\"proposals\".\"status\" IN ('pending','accepted','rejected')"
+        }
+      }
     },
     "run_stats": {
       "name": "run_stats",

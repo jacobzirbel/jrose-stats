@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import type { DB } from "../client";
 import { catalogItems, categories, gyms, moves, pokemon, pokemonMoves, runs } from "../schema";
 import { loadCache } from "./cache";
-import { CATEGORIES, GEN1_VERSION_GROUPS, GYMS, MISSINGNO } from "./static-data";
+import { BATTLES, CATEGORIES, GEN1_VERSION_GROUPS, MISSINGNO } from "./static-data";
 
 function titleCase(slug: string): string {
   return slug
@@ -29,6 +29,7 @@ export interface SeedCounts {
   pokemon: number;
   moves: number;
   learnset: number;
+  battles: number;
   gyms: number;
   runs: number;
 }
@@ -43,7 +44,7 @@ export function seedReference(db: DB): SeedCounts {
     const catRows = tx.select({ id: categories.id, slug: categories.slug }).from(categories).all();
     const catBySlug = new Map(catRows.map((c) => [c.slug, c.id]));
     const movesCat = catBySlug.get("moves")!;
-    const gymsCat = catBySlug.get("gyms")!;
+    const battlesCat = catBySlug.get("battles")!;
 
     // 2. pokemon (151 + MissingNo) -----------------------------------------
     const pokemonRows = cache.pokemonDetails.map((p) => ({
@@ -94,26 +95,36 @@ export function seedReference(db: DB): SeedCounts {
     }
     chunked(learnsetRows, (c) => tx.insert(pokemonMoves).values(c).onConflictDoNothing().run());
 
-    // 5. gyms → catalog_items bridge + gyms lookup -------------------------
+    // 5. battles → catalog_items bridge + gyms lookup (gym battles only) ----
+    // All 21 major battles are catalog_items in the Battles category, in
+    // canonical sequence (sort_order). The gym subset also bridges to the domain
+    // `gyms` table — the gym flag that survives the merge.
     tx.insert(catalogItems)
       .values(
-        GYMS.map((g) => ({ categoryId: gymsCat, slug: g.slug, label: g.label, status: "active" as const })),
+        BATTLES.map((b, i) => ({
+          categoryId: battlesCat,
+          slug: b.slug,
+          label: b.label,
+          status: "active" as const,
+          sortOrder: i,
+        })),
       )
       .onConflictDoNothing()
       .run();
-    const gymCatItems = tx
+    const battleCatItems = tx
       .select({ id: catalogItems.id, slug: catalogItems.slug })
       .from(catalogItems)
-      .where(eq(catalogItems.categoryId, gymsCat))
+      .where(eq(catalogItems.categoryId, battlesCat))
       .all();
-    const gymCatBySlug = new Map(gymCatItems.map((r) => [r.slug, r.id]));
+    const battleCatBySlug = new Map(battleCatItems.map((r) => [r.slug, r.id]));
+    const gymBattles = BATTLES.filter((b) => b.gym);
     tx.insert(gyms)
       .values(
-        GYMS.map((g) => ({
-          catalogItemId: gymCatBySlug.get(g.slug)!,
-          leader: g.leader,
-          city: g.city,
-          canonicalOrder: g.order,
+        gymBattles.map((b) => ({
+          catalogItemId: battleCatBySlug.get(b.slug)!,
+          leader: b.gym!.leader,
+          city: b.gym!.city,
+          canonicalOrder: b.gym!.order,
         })),
       )
       .onConflictDoNothing()
@@ -131,7 +142,8 @@ export function seedReference(db: DB): SeedCounts {
       pokemon: pokemonRows.length + 1,
       moves: moveRows.length,
       learnset: learnsetRows.length,
-      gyms: GYMS.length,
+      battles: BATTLES.length,
+      gyms: gymBattles.length,
       runs: allDex.length,
     };
   });
