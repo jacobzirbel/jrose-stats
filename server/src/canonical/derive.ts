@@ -52,6 +52,7 @@ export interface DeriveField {
   value: string | null;
   valueCatalogItemId: number | null;
   valueLabel: string | null;
+  isIdentity: boolean; // value is part of the fact's key, not a comparable value
 }
 
 export interface DeriveClaim {
@@ -87,6 +88,11 @@ export interface FieldValue {
   valueCatalogItemId: number | null;
   valueLabel: string | null;
   logIds: number[];
+  isIdentity: boolean;
+  // True once ≥2 logs recorded this exact value (or it's identity-bearing, hence
+  // part of an already-corroborated fact key). A single-source value field rides
+  // along as `confirmed: false` so it's never presented as a confirmed fact (M2).
+  confirmed: boolean;
 }
 
 export interface MembershipFact {
@@ -162,14 +168,34 @@ const toSupporter = (c: DeriveClaim): Supporter => ({
   timestampSec: c.timestampSec,
 });
 
+// A field value's identity string (catalog ref vs scalar), shared by the
+// identity-key and field-collapse keys so they agree on what "same value" means.
+const fieldIdent = (f: DeriveField): string =>
+  f.valueCatalogItemId != null ? `c:${f.valueCatalogItemId}` : `v:${f.value ?? ""}`;
+
+// The identity-field portion of a claim's membership key: its identity-bearing
+// field values, stable-stringified. Two claims on the same item with different
+// identity values are DIFFERENT facts (Mimic→Tackle vs Mimic→Growl); empty when
+// the item has no identity fields (ordinary membership).
+function identityKey(c: DeriveClaim): string {
+  return c.fields
+    .filter((f) => f.isIdentity)
+    .map((f) => `${f.slug}=${fieldIdent(f)}`)
+    .sort()
+    .join("&");
+}
+
 // Collapse field values across a fact's claims by (slug, value-identity). Two
 // claims with the same value share a FieldValue (logIds merged); differing
-// values yield separate entries for the SAME slug — that's a visible disagreement.
+// values yield separate entries for the SAME slug — that's a visible disagreement
+// (for value fields; identity fields are uniform within a fact by construction).
+// `confirmed` marks a value backed by ≥2 logs (identity values are confirmed with
+// the fact); a single-source value field stays unconfirmed (M2).
 function collapseFields(group: DeriveClaim[]): FieldValue[] {
   const fieldMap = new Map<string, FieldValue>();
   for (const c of group) {
     for (const f of c.fields) {
-      const key = `${f.slug}|${f.valueCatalogItemId != null ? `c:${f.valueCatalogItemId}` : `v:${f.value ?? ""}`}`;
+      const key = `${f.slug}|${fieldIdent(f)}`;
       const fv = fieldMap.get(key) ?? {
         slug: f.slug,
         label: f.label,
@@ -177,25 +203,38 @@ function collapseFields(group: DeriveClaim[]): FieldValue[] {
         valueCatalogItemId: f.valueCatalogItemId,
         valueLabel: f.valueLabel,
         logIds: [],
+        isIdentity: f.isIdentity,
+        confirmed: false,
       };
       if (!fv.logIds.includes(c.logId)) fv.logIds.push(c.logId);
       fieldMap.set(key, fv);
     }
   }
-  return [...fieldMap.values()].sort((a, b) => a.slug.localeCompare(b.slug));
+  const values = [...fieldMap.values()];
+  for (const fv of values) fv.confirmed = fv.isIdentity || fv.logIds.length >= 2;
+  return values.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 function deriveMembership(claims: DeriveClaim[]): MembershipFact[] {
-  const byItem = new Map<number, DeriveClaim[]>();
-  for (const c of claims) (byItem.get(c.catalogItemId) ?? byItem.set(c.catalogItemId, []).get(c.catalogItemId)!).push(c);
+  // Group by the membership key = catalog item + its identity-field values.
+  const byKey = new Map<string, DeriveClaim[]>();
+  for (const c of claims) {
+    const key = `${c.catalogItemId}|${identityKey(c)}`;
+    (byKey.get(key) ?? byKey.set(key, []).get(key)!).push(c);
+  }
 
   const facts: MembershipFact[] = [];
-  for (const [catalogItemId, group] of byItem) {
+  for (const group of byKey.values()) {
     const { status, divergent } = factStatus(group.map((c) => c.status));
+    // Surface the identity value in the label so the fact reads "Mimic → Tackle".
+    const idFields = group[0].fields.filter((f) => f.isIdentity);
+    const label = idFields.length
+      ? `${group[0].label} → ${idFields.map((f) => f.valueLabel ?? f.value ?? "?").join(", ")}`
+      : group[0].label;
     facts.push({
-      catalogItemId,
+      catalogItemId: group[0].catalogItemId,
       categorySlug: group[0].categorySlug,
-      label: group[0].label,
+      label,
       status,
       divergent,
       standing: standingBucket(status),

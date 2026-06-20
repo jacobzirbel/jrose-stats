@@ -333,14 +333,27 @@ workbenchRoutes.post("/logs/:logId/reopen", requireTrusted, (c) => {
   `)[0];
   if (!log) return c.json({ error: "Log not found" }, 404);
 
-  // A published run latches live; don't let a reopen desync it.
-  const live = db.all<{ one: number }>(sql`
-    SELECT 1 AS one FROM runs r
+  // `live` latches (a reopen would desync it); `escalated` latches too — once a
+  // run is in the admin queue the loggers' round is over, so they can't reopen,
+  // silently drop the conflicting claim, and resubmit around the admin (C2). Only
+  // an admin verdict clears an escalated run.
+  const blocked = db.all<{ state: string }>(sql`
+    SELECT r.record_state AS state FROM runs r
     JOIN run_videos rv ON rv.run_id = r.id
     JOIN video_logs vl ON vl.video_id = rv.video_id
-    WHERE vl.id = ${logId} AND r.record_state = 'live' LIMIT 1
+    WHERE vl.id = ${logId} AND r.record_state IN ('live', 'escalated') LIMIT 1
   `)[0];
-  if (live) return c.json({ error: "This run is already live." }, 409);
+  if (blocked) {
+    return c.json(
+      {
+        error:
+          blocked.state === "live"
+            ? "This run is already live."
+            : "This run is escalated — an admin must resolve it.",
+      },
+      409,
+    );
+  }
 
   // Back to draft so the normal edit endpoints accept it. Claim statuses are
   // left as-is (matching re-derives them on resubmit). With one log no longer
@@ -387,13 +400,17 @@ workbenchRoutes.delete("/claims/:claimId", requireTrusted, (c) => {
   const user = c.get("user")!;
   const claimId = Number(c.req.param("claimId"));
 
-  // Only the owner of the claim's log may delete it.
+  // Only the owner may delete, and only while the log is a DRAFT — a submitted
+  // log's claims are on the record, so deleting one is an edit that must go
+  // through reopen (which is itself blocked once the run is live/escalated). This
+  // keeps a logger from silently dropping a claim out from under matching (C2).
   // (raw `db.get(sql)` returns a positional array in drizzle bun-sqlite — use all()[0].)
   const owned = db.all<{ id: number }>(sql`
     SELECT ec.id AS id
     FROM event_claims ec
     JOIN video_logs vl ON vl.id = ec.log_id
-    WHERE ec.id = ${claimId} AND vl.user_id = ${user.id} AND vl.deleted_at IS NULL
+    WHERE ec.id = ${claimId} AND vl.user_id = ${user.id}
+      AND vl.status = 'draft' AND vl.deleted_at IS NULL
   `)[0];
   if (!owned) return c.json({ error: "Claim not found" }, 404);
 

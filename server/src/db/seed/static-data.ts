@@ -36,15 +36,20 @@ export interface CategoryFieldSeed {
   label: string;
   type: "text" | "number" | "duration" | "enum" | "catalog_ref";
   refCategory?: string;
+  // Identity-bearing: the field's value is part of the fact's key (see
+  // category_fields.isIdentity). Used by the copy mechanics so one mechanic can
+  // capture a SET of moves (Mimic copying Tackle AND Growl = two facts).
+  identity?: boolean;
 }
 
 export const CATEGORY_FIELDS: CategoryFieldSeed[] = [
   // Copy mechanics: the CLAIM is the mechanic move (mimic / mirror-move /
   // metronome — all in-learnset); the field records the move it produced,
   // picked from ALL moves (NOT the run learnset). One row per mechanic item.
-  { category: "moves", item: "mimic", slug: "copied-move", label: "Mimicked move", type: "catalog_ref", refCategory: "moves" },
-  { category: "moves", item: "mirror-move", slug: "copied-move", label: "Mirrored move", type: "catalog_ref", refCategory: "moves" },
-  { category: "moves", item: "metronome", slug: "copied-move", label: "Metronome result", type: "catalog_ref", refCategory: "moves" },
+  // `identity` so each copied move is its own fact (set-valued, not one value).
+  { category: "moves", item: "mimic", slug: "copied-move", label: "Mimicked move", type: "catalog_ref", refCategory: "moves", identity: true },
+  { category: "moves", item: "mirror-move", slug: "copied-move", label: "Mirrored move", type: "catalog_ref", refCategory: "moves", identity: true },
+  { category: "moves", item: "metronome", slug: "copied-move", label: "Metronome result", type: "catalog_ref", refCategory: "moves", identity: true },
   // In-game time to clear Brock — shows on the Brock gym claim only. Stored as
   // seconds; the workbench accepts M:SS and parses it.
   { category: "gyms", item: "gym-brock", slug: "ingame-time", label: "In-game time (after beating Brock, 0 if unknown)", type: "duration" },

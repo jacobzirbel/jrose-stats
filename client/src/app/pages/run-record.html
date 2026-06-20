@@ -84,7 +84,10 @@
             <ul class="fields">
               @for (fv of f.fields; track fv.slug + (fv.valueLabel ?? fv.value)) {
                 <li>{{ fv.label }}: <strong>{{ fv.valueLabel ?? fv.value }}</strong>
-                  <span class="muted">({{ fv.logIds.length }})</span></li>
+                  <span class="muted">({{ fv.logIds.length }})</span>
+                  @if (!fv.confirmed) {
+                    <span class="muted" title="Only one logger recorded this value">· unconfirmed</span>
+                  }</li>
               }
             </ul>
           }
@@ -129,7 +132,10 @@
             <ul class="fields">
               @for (fv of o.fields; track fv.slug + (fv.valueLabel ?? fv.value)) {
                 <li>{{ fv.label }}: <strong>{{ fv.valueLabel ?? fv.value }}</strong>
-                  <span class="muted">({{ fv.logIds.length }})</span></li>
+                  <span class="muted">({{ fv.logIds.length }})</span>
+                  @if (!fv.confirmed) {
+                    <span class="muted" title="Only one logger recorded this value">· unconfirmed</span>
+                  }</li>
               }
             </ul>
           }

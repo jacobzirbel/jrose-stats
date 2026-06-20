@@ -54,6 +54,7 @@ interface FieldRow {
   value: string | null;
   valueCatalogItemId: number | null;
   valueLabel: string | null;
+  isIdentity: number;
 }
 
 /**
@@ -108,7 +109,7 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
   const fieldRows = db.all<FieldRow>(sql`
     SELECT cf.claim_id AS claimId, f.slug AS slug, f.label AS label,
            cf.value AS value, cf.value_catalog_item_id AS valueCatalogItemId,
-           ref.label AS valueLabel
+           ref.label AS valueLabel, f.is_identity AS isIdentity
     FROM claim_fields cf
     JOIN category_fields f ON f.id = cf.field_id
     LEFT JOIN catalog_items ref ON ref.id = cf.value_catalog_item_id
@@ -134,6 +135,7 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
       value: f.value,
       valueCatalogItemId: f.valueCatalogItemId,
       valueLabel: f.valueLabel,
+      isIdentity: f.isIdentity === 1,
     })),
   }));
 

@@ -83,14 +83,40 @@ const detailField = () =>
     "INSERT INTO category_fields (id,category_id,catalog_item_id,slug,label,type,required,sort_order) VALUES (1,1,NULL,'move','Move','text',0,0)",
   );
 
-test("same item, disagreeing field value (e.g. the mimicked move) → contested", () => {
-  detailField();
+test("same item, disagreeing VALUE field (e.g. Brock's in-game time) → contested", () => {
+  detailField(); // 'move' is a value field (is_identity=0), so a clash contests
   claim(1, 1, 1, 100); // joke-a, log1
   claim(2, 2, 1, 150); // joke-a, log2 — same item, but...
   sqlite.run("INSERT INTO claim_fields (id,claim_id,field_id,value) VALUES (1,1,1,'tackle'),(2,2,1,'growl')");
   runMatching(db, 1);
   expect(statusOf(1)).toBe("contested");
   expect(statusOf(2)).toBe("contested");
+});
+
+// copied-move is an IDENTITY field in production: its value is part of the fact's
+// key, so a "disagreement" is really two different facts, not a conflict.
+const identityField = () =>
+  sqlite.run(
+    "INSERT INTO category_fields (id,category_id,catalog_item_id,slug,label,type,required,is_identity,sort_order) VALUES (2,1,NULL,'copied','Copied','text',0,1,0)",
+  );
+
+test("identity field: a disagreeing value splits into separate facts, not a contest", () => {
+  identityField();
+  claim(1, 1, 1, 100); // joke-a, log1 — Mimic→tackle
+  claim(2, 2, 1, 150); // joke-a, log2 — Mimic→growl (same item, different copied move)
+  sqlite.run("INSERT INTO claim_fields (id,claim_id,field_id,value) VALUES (1,1,2,'tackle'),(2,2,2,'growl')");
+  runMatching(db, 1);
+  expect(statusOf(1)).toBe("proposed"); // its own fact, one log
+  expect(statusOf(2)).toBe("proposed"); // its own fact, one log
+});
+
+test("identity field: the same value on both logs → agreed", () => {
+  identityField();
+  claim(1, 1, 1, 100);
+  claim(2, 2, 1, 150);
+  sqlite.run("INSERT INTO claim_fields (id,claim_id,field_id,value) VALUES (1,1,2,'tackle'),(2,2,2,'tackle')");
+  runMatching(db, 1);
+  expect(statusOf(1)).toBe("agreed"); // same identity value → same fact, both logs back it
 });
 
 test("same item, same field value → agreed", () => {

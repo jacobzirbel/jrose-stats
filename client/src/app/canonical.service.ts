@@ -22,6 +22,8 @@ export interface FieldValue {
   valueCatalogItemId: number | null;
   valueLabel: string | null;
   logIds: number[];
+  isIdentity: boolean;
+  confirmed: boolean; // ≥2 logs recorded this value (or it's identity-bearing); else single-source
 }
 
 export interface MembershipFact {

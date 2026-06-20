@@ -57,8 +57,8 @@ export function runMatching(db: DB, runId: number): void {
   // but disagree on a metadata value (the mimicked move, Brock's time) have NOT
   // actually agreed. Pull each claim's values as comparable identities (a
   // catalog ref vs a scalar) so the membership pass can spot the conflict.
-  const fieldRows = db.all<{ claimId: number; slug: string; ident: string }>(sql`
-    SELECT cf.claim_id AS claimId, f.slug AS slug,
+  const fieldRows = db.all<{ claimId: number; slug: string; ident: string; isIdentity: number }>(sql`
+    SELECT cf.claim_id AS claimId, f.slug AS slug, f.is_identity AS isIdentity,
            CASE WHEN cf.value_catalog_item_id IS NOT NULL
                 THEN 'c' || cf.value_catalog_item_id
                 ELSE 'v' || COALESCE(cf.value, '') END AS ident
@@ -73,10 +73,20 @@ export function runMatching(db: DB, runId: number): void {
         (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
       ) = ${runId}
   `);
-  const fieldsByClaim = new Map<number, { slug: string; ident: string }[]>();
+  const fieldsByClaim = new Map<number, { slug: string; ident: string; isIdentity: number }[]>();
   for (const f of fieldRows) {
     (fieldsByClaim.get(f.claimId) ?? fieldsByClaim.set(f.claimId, []).get(f.claimId)!).push(f);
   }
+
+  // The identity-field portion of a claim's membership key: identity-bearing
+  // field values, stable-stringified. Mimic→Tackle and Mimic→Growl key apart, so
+  // each copied move is its own fact needing two logs to agree.
+  const identityKey = (claimId: number): string =>
+    (fieldsByClaim.get(claimId) ?? [])
+      .filter((f) => f.isIdentity)
+      .map((f) => `${f.slug}=${f.ident}`)
+      .sort()
+      .join("&");
   // True iff two logs DISAGREE on a field's value. We compare per-log value
   // sets: a log using Mimic twice (Tackle, Growl) isn't a conflict with itself,
   // and a value only one log recorded isn't a conflict (absence ≠ contradiction)
@@ -87,6 +97,7 @@ export function runMatching(db: DB, runId: number): void {
     for (const r of group) {
       const slugMap = byLogSlug.get(r.logId) ?? new Map<string, Set<string>>();
       for (const f of fieldsByClaim.get(r.id) ?? []) {
+        if (f.isIdentity) continue; // identity fields are part of the key, never a value clash
         (slugMap.get(f.slug) ?? slugMap.set(f.slug, new Set()).get(f.slug)!).add(f.ident);
         slugs.add(f.slug);
       }
@@ -106,9 +117,12 @@ export function runMatching(db: DB, runId: number): void {
   const targets = new Map<number, Status>(); // claimId -> new status (only where it changes)
 
   // --- membership: >=2 logs + values agree → agreed; values disagree → contested ---
-  const byItem = new Map<number, Row[]>();
+  // Keyed by item + identity-field values, so Mimic→Tackle and Mimic→Growl are
+  // separate facts (each needs two logs), not one fact with clashing values.
+  const byItem = new Map<string, Row[]>();
   for (const r of rows.filter((r) => !ORDINAL.has(r.categorySlug))) {
-    (byItem.get(r.catalogItemId) ?? byItem.set(r.catalogItemId, []).get(r.catalogItemId)!).push(r);
+    const key = `${r.catalogItemId}|${identityKey(r.id)}`;
+    (byItem.get(key) ?? byItem.set(key, []).get(key)!).push(r);
   }
   for (const group of byItem.values()) {
     if (group.some((r) => STICKY.has(r.status))) continue; // a human has ruled — leave it
@@ -191,21 +205,32 @@ export function recomputeRecordState(db: DB, runId: number): void {
     // Mid-reopen: don't reset a round that's already underway.
     state = cur === "reconciling" || cur === "escalated" ? (cur as "reconciling" | "escalated") : "logging";
   } else {
-    const diff = db.all<{ n: number }>(sql`
-      SELECT COUNT(*) AS n
+    const counts = db.all<{ diff: number; agreed: number }>(sql`
+      SELECT
+        COALESCE(SUM(CASE WHEN ec.status IN ('proposed','contested') THEN 1 ELSE 0 END), 0) AS diff,
+        COALESCE(SUM(CASE WHEN ec.status IN ('agreed','certified')   THEN 1 ELSE 0 END), 0) AS agreed
       FROM event_claims ec
       JOIN video_logs vl ON vl.id = ec.log_id
       LEFT JOIN claim_run cr ON cr.claim_id = ec.id
       WHERE vl.deleted_at IS NULL
-        AND ec.status IN ('proposed','contested')
+        AND ec.status IN ('proposed','agreed','contested','certified')
         AND COALESCE(
           cr.run_id,
           (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
         ) = ${runId}
-    `)[0].n;
-    // Agreement → live. A diff opens the ONE round from `logging`; a diff that
-    // survives that round (cur already reconciling/escalated) → admin queue.
-    state = diff === 0 ? "live" : cur === "logging" ? "reconciling" : "escalated";
+    `)[0];
+    // Agreement → live, but ONLY with something to publish: two empty logs (no
+    // agreed fact) must not latch an empty record as canonical (M1). A diff opens
+    // the ONE round from `logging`; a diff that survives that round (cur already
+    // reconciling/escalated) → admin queue.
+    state =
+      counts.diff === 0
+        ? counts.agreed > 0
+          ? "live"
+          : "logging"
+        : cur === "logging"
+          ? "reconciling"
+          : "escalated";
   }
   db.run(sql`UPDATE runs SET record_state = ${state} WHERE id = ${runId}`);
 }

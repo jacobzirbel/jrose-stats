@@ -227,6 +227,13 @@ export const categoryFields = sqliteTable(
     // JSON array of {value,label} for type='enum'; NULL for other types.
     options: text("options"),
     required: integer("required").notNull().default(0),
+    // Identity-bearing: when 1, this field's VALUE is part of the fact's
+    // assertion key, not a comparable value. So `Mimic→Tackle` and `Mimic→Growl`
+    // are DISTINCT membership facts (each needing two logs to agree) instead of
+    // one `(run, Mimic)` fact whose two copied-move values read as a conflict —
+    // letting one mechanic capture a SET of targets. Value fields (Brock's time)
+    // stay 0 and are compared as values.
+    isIdentity: integer("is_identity").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [

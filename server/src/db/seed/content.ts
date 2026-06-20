@@ -71,7 +71,7 @@ export function seedCategoryFields(db: DB): number {
         catalogItemId = item.id;
       }
 
-      return { categoryId, catalogItemId, slug: f.slug, label: f.label, type: f.type, refCategoryId };
+      return { categoryId, catalogItemId, slug: f.slug, label: f.label, type: f.type, refCategoryId, isIdentity: f.identity ? 1 : 0 };
     });
 
     tx.insert(categoryFields).values(rows).onConflictDoNothing().run();
