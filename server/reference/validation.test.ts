@@ -47,9 +47,18 @@ function claim(id: number, catalogItemId: number, ts: number) {
   sqlite.run("INSERT INTO event_claims (id,log_id,catalog_item_id,timestamp_sec) VALUES (?,1,?,?)", [id, catalogItemId, ts]);
 }
 const setRunDone = () => sqlite.run("UPDATE runs SET status='done' WHERE id=1");
+const setRunAbandoned = () => sqlite.run("UPDATE runs SET status='impossible_abandoned' WHERE id=1");
+// 8 gyms in canonical order (ci 3..10 = gym1..gym8) at ascending timestamps.
 const allGyms = () => [3, 4, 5, 6, 7, 8, 9, 10].forEach((ci, i) => claim(100 + i, ci, 10 + i));
+const aMove = () => claim(1, 1, 5); // tackle (learnable) at 5s
 
-test("empty log on an in-progress run is clean (gyms waived, no required-non-owned cat)", () => {
+test("empty log on an in-progress run → completeness is ENFORCED (gyms-incomplete + no-moves)", () => {
+  // The bug this blocker fixes: only impossible_abandoned is waived now.
+  expect(codes()).toEqual(["gyms-incomplete", "no-moves"]);
+});
+
+test("empty log on an impossible_abandoned run is clean (completeness waived)", () => {
+  setRunAbandoned();
   expect(codes()).toEqual([]);
 });
 
@@ -75,10 +84,40 @@ test("run done with <8 gyms → gyms-incomplete", () => {
   expect(codes()).toContain("gyms-incomplete");
 });
 
-test("run done with all 8 distinct gyms is clean", () => {
+test("all 8 gyms in order + a move is clean (done or in-progress)", () => {
   setRunDone();
+  aMove();
   allGyms();
   expect(codes()).toEqual([]);
+});
+
+test("all 8 gyms but no move → no-moves", () => {
+  allGyms();
+  expect(codes()).toEqual(["no-moves"]);
+});
+
+test("middle gyms (3–7) in any order is still clean", () => {
+  aMove();
+  // gym1 first, gym2 second, gym8 last; shuffle 3–7 in the middle.
+  [3, 4, 7, 5, 8, 6, 9, 10].forEach((ci, i) => claim(100 + i, ci, 10 + i));
+  expect(codes()).toEqual([]);
+});
+
+test("gym 8 not logged last → gyms-misordered", () => {
+  aMove();
+  // gym8 (ci 10) dropped early; the rest follow.
+  claim(100, 10, 6); // gym8 at 6s
+  [3, 4, 5, 6, 7, 8, 9].forEach((ci, i) => claim(110 + i, ci, 10 + i)); // gym1..gym7
+  expect(codes()).toContain("gyms-misordered");
+});
+
+test("gym 1 not logged first → gyms-misordered", () => {
+  aMove();
+  // gym2 (ci 4) before gym1 (ci 3).
+  claim(100, 4, 10); // gym2 first
+  claim(101, 3, 11); // gym1 second
+  [5, 6, 7, 8, 9, 10].forEach((ci, i) => claim(110 + i, ci, 12 + i)); // gym3..gym8
+  expect(codes()).toContain("gyms-misordered");
 });
 
 test("the same gym twice → gym-duplicate", () => {

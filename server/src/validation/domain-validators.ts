@@ -91,11 +91,18 @@ export class LearnsetValidator implements ClaimValidator {
 }
 
 /**
- * Owns the Battles category, PER RUN, for gym completeness. Gyms are now battle
- * catalog items flagged in the domain `gyms` table (the merge keeps CORE
- * gym-blind). For each run on the video: if `done`, all 8 distinct gyms must be
- * present; duplicates are rejected; `impossible_abandoned` waives completeness.
- * Multi-run videos judge each run independently.
+ * Owns the Battles category, PER RUN, for gym completeness AND order. Gyms are
+ * battle catalog items flagged in the domain `gyms` table (the merge keeps CORE
+ * gym-blind). For each run on the video, unless it's `impossible_abandoned`
+ * (the Magikarp-style case — can't beat the game, so completeness is waived):
+ *   - all 8 distinct gyms must be present (no duplicates), and
+ *   - they must respect Gen-1's forced bookends: sorted by timestamp, gym 1 is
+ *     first, gym 2 second, gym 8 last. The middle five (Surge/Erika/Koga/
+ *     Sabrina/Blaine, canonical_order 3–7) are route-dependent, so unconstrained.
+ * Multi-run videos judge each run independently. (The submit gate — completeness
+ * is enforced at submit, never deferred to the matcher, which is why M1/M2 die
+ * here. Only `impossible_abandoned` opts out; `untouched`/`in_progress`/`done`
+ * are all held to the full bar.)
  */
 export class GymCompletenessValidator implements ClaimValidator {
   static readonly OWNS = "battles";
@@ -105,31 +112,74 @@ export class GymCompletenessValidator implements ClaimValidator {
 
   validate(ctx: ValidationContext): Violation[] {
     // The gym battles among the combined Battles category — those bridged into
-    // the domain `gyms` table. Non-gym battles (rivals, Elite Four) are ignored.
-    const gymItemIds = new Set(
-      this.db.all<{ id: number }>(sql`SELECT catalog_item_id AS id FROM gyms`).map((r) => r.id),
+    // the domain `gyms` table (with their canonical 1–8 order). Non-gym battles
+    // (rivals, Elite Four) are ignored.
+    const orderByItem = new Map(
+      this.db
+        .all<{ id: number; ord: number }>(
+          sql`SELECT catalog_item_id AS id, canonical_order AS ord FROM gyms`,
+        )
+        .map((r) => [r.id, r.ord] as const),
     );
-    const gymClaims = ctx.claims.filter((c) => gymItemIds.has(c.catalogItemId));
+    const gymClaims = ctx.claims.filter((c) => orderByItem.has(c.catalogItemId));
     const runs = videoRuns(this.db, ctx.video.id);
     const multiRun = runs.length > 1;
     const out: Violation[] = [];
 
     for (const run of runs) {
-      const itemIds = gymClaims
-        .filter((c) => !multiRun || runIdForClaim(this.db, c.id) === run.id)
-        .map((c) => c.catalogItemId);
-      const distinct = new Set(itemIds);
+      if (run.status === "impossible_abandoned") continue; // completeness waived
 
-      if (itemIds.length > distinct.size) {
+      const claims = gymClaims.filter((c) => !multiRun || runIdForClaim(this.db, c.id) === run.id);
+      const distinct = new Set(claims.map((c) => c.catalogItemId));
+
+      if (claims.length > distinct.size) {
         out.push({ code: "gym-duplicate", message: `${run.name}: the same gym is logged twice.` });
+        continue; // order is meaningless with a duplicate in the mix
       }
-      if (run.status === "done" && distinct.size < GymCompletenessValidator.REQUIRED_GYMS) {
+      if (distinct.size < GymCompletenessValidator.REQUIRED_GYMS) {
         out.push({
           code: "gyms-incomplete",
-          message: `${run.name}: ${distinct.size}/${GymCompletenessValidator.REQUIRED_GYMS} gyms logged, but the run is marked done.`,
+          message: `${run.name}: ${distinct.size}/${GymCompletenessValidator.REQUIRED_GYMS} gyms logged.`,
+        });
+        continue; // can't check order without the full set
+      }
+
+      // Forced bookends: by timestamp, gym 1 first, gym 2 second, gym 8 last.
+      const ordered = [...claims].sort((a, b) => a.timestampSec - b.timestampSec);
+      const ordOf = (c: (typeof ordered)[number]) => orderByItem.get(c.catalogItemId);
+      if (ordOf(ordered[0]) !== 1 || ordOf(ordered[1]) !== 2 || ordOf(ordered[ordered.length - 1]) !== 8) {
+        out.push({
+          code: "gyms-misordered",
+          message: `${run.name}: gyms 1 and 2 must be logged first and gym 8 last.`,
         });
       }
-      // impossible_abandoned (and in_progress / untouched): completeness waived.
+    }
+    return out;
+  }
+}
+
+/**
+ * Every non-abandoned run on the video must have at least one Moves claim — a
+ * solo run is defined by the moveset it uses, so an empty-of-moves log is never
+ * complete. (Kept out of CORE's `RequiredCategoriesPresent` deliberately: "Moves
+ * is a required category" would wrongly imply *every* move, and run-attribution
+ * for multi-run videos is domain knowledge.) Waived for `impossible_abandoned`.
+ */
+export class MovesPresentValidator implements ClaimValidator {
+  constructor(private readonly db: DB) {}
+
+  validate(ctx: ValidationContext): Violation[] {
+    const moveClaims = ctx.claims.filter((c) => c.categorySlug === "moves");
+    const runs = videoRuns(this.db, ctx.video.id);
+    const multiRun = runs.length > 1;
+    const out: Violation[] = [];
+
+    for (const run of runs) {
+      if (run.status === "impossible_abandoned") continue;
+      const hasMove = moveClaims.some((c) => !multiRun || runIdForClaim(this.db, c.id) === run.id);
+      if (!hasMove) {
+        out.push({ code: "no-moves", message: `${run.name}: log at least one move.` });
+      }
     }
     return out;
   }
