@@ -1,6 +1,6 @@
 /** Shapes returned by the Hono JSON API (mirrors server/src/db/queries + auth). */
 
-export type RunStatus = 'untouched' | 'in_progress' | 'done' | 'impossible_abandoned';
+export type RunStatus = 'untouched' | 'in_progress' | 'submitted' | 'done' | 'impossible_abandoned';
 
 /** The role ladder (server: auth/roles.ts). member < trusted < admin. */
 export type Role = 'member' | 'trusted' | 'admin';
@@ -136,6 +136,7 @@ export function parseClock(text: string): number | null {
 export const STATUS_LABEL: Record<RunStatus, string> = {
   untouched: 'Untouched',
   in_progress: 'In progress',
+  submitted: 'Submitted',
   done: 'Done',
   impossible_abandoned: 'Abandoned',
 };

@@ -28,7 +28,14 @@
     Playlist
   </button>
   <button type="button" [class.active]="sort() === 'dex'" (click)="setSort('dex')">Dex</button>
-  <span class="hint">blue dot = has video · border color = run status</span>
+  <span class="hint">
+    blue dot = has video · outline:
+    <span class="key" data-status="untouched">grey untouched</span>
+    <span class="key" data-status="in_progress">amber in&nbsp;progress</span>
+    <span class="key" data-status="submitted">teal submitted</span>
+    <span class="key" data-status="done">green done&nbsp;(live)</span>
+    <span class="key" data-status="impossible_abandoned">red abandoned</span>
+  </span>
 </div>
 
 <ul class="grid">

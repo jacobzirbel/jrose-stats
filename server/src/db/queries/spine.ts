@@ -10,7 +10,7 @@ import { sql } from "drizzle-orm";
 
 import type { DB } from "../client";
 
-export type RunStatus = "untouched" | "in_progress" | "done" | "impossible_abandoned";
+export type RunStatus = "untouched" | "in_progress" | "submitted" | "done" | "impossible_abandoned";
 
 export interface SpineCell {
   dex: number;
@@ -66,15 +66,26 @@ const HAS_LIVE = sql`EXISTS (
   SELECT 1 FROM runs r3 WHERE r3.pokemon_dex = p.dex AND r3.record_state = 'live'
 )`;
 
+// Has at least one logger SUBMITTED a log (vs. a still-open draft)? Distinguishes
+// "I've finished + submitted this run" from "started but not submitted".
+const HAS_SUBMITTED = sql`EXISTS (
+  SELECT 1 FROM video_logs vl
+  JOIN run_videos rv ON rv.video_id = vl.video_id
+  JOIN runs r4 ON r4.id = rv.run_id
+  WHERE r4.pokemon_dex = p.dex AND vl.status = 'submitted' AND vl.deleted_at IS NULL
+)`;
+
 // Displayed status follows the record lifecycle, but a genuine outcome wins:
 //   abandoned/done set on the run  → kept
 //   a published (live) record      → done (it's finished + verified)
-//   logged but not yet published   → in_progress
+//   a submitted (not-live) log     → submitted (logged + submitted, awaiting 2nd)
+//   logged but only a draft        → in_progress
 //   nothing logged                 → untouched
 const DISPLAY_STATUS = sql`CASE
   WHEN ${BASE_STATUS} = 'impossible_abandoned' THEN 'impossible_abandoned'
   WHEN ${BASE_STATUS} = 'done' THEN 'done'
   WHEN ${HAS_LIVE} THEN 'done'
+  WHEN ${HAS_SUBMITTED} THEN 'submitted'
   WHEN ${HAS_LOGS} THEN 'in_progress'
   ELSE 'untouched' END`;
 

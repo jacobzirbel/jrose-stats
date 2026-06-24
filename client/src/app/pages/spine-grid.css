@@ -108,14 +108,33 @@
   display: block;
   font-size: 0.65rem;
 }
-.cell[data-status='in_progress'] {
+/* Status → outline color, shared by the grid cells and the legend swatches
+   (untouched has no rule — falls back to the var(--c, #ccc) default). */
+[data-status='in_progress'] {
   --c: #e0a200;
 }
-.cell[data-status='done'] {
+[data-status='submitted'] {
+  --c: #0d9488;
+}
+[data-status='done'] {
   --c: #2e9e2e;
 }
-.cell[data-status='impossible_abandoned'] {
+[data-status='impossible_abandoned'] {
   --c: #cc3333;
+}
+.hint .key {
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+.hint .key::before {
+  content: '';
+  display: inline-block;
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  margin-right: 3px;
+  vertical-align: middle;
+  border: 2px solid var(--c, #ccc);
 }
 .dot {
   position: absolute;

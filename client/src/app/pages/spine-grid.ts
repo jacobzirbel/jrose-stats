@@ -41,6 +41,7 @@ export class SpineGrid {
   private readonly statusLabel: Record<RunStatus, string> = {
     untouched: 'Untouched',
     in_progress: 'In progress',
+    submitted: 'Submitted',
     done: 'Done',
     impossible_abandoned: 'Abandoned',
   };
