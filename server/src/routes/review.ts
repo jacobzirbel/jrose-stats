@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { type AppEnv, requireAuth } from "../auth/middleware";
 import { recomputeRecordState } from "../canonical/match";
 import { db } from "../db/client";
+import { attributedRunId } from "../db/run-attribution";
 
 export const reviewRoutes = new Hono<AppEnv>();
 
@@ -35,9 +36,7 @@ reviewRoutes.post("/claims/:claimId/review", requireAuth, async (c) => {
   // Resolve the claim's fact key (catalog item) + its run (same attribution as elsewhere).
   const claim = db.all<{ catalogItemId: number; runId: number | null }>(sql`
     SELECT ec.catalog_item_id AS catalogItemId,
-           COALESCE(cr.run_id,
-             (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
-           ) AS runId
+           ${attributedRunId()} AS runId
     FROM event_claims ec
     JOIN video_logs vl ON vl.id = ec.log_id
     LEFT JOIN claim_run cr ON cr.claim_id = ec.id
@@ -70,9 +69,7 @@ reviewRoutes.post("/claims/:claimId/review", requireAuth, async (c) => {
         JOIN video_logs vl ON vl.id = ec.log_id
         LEFT JOIN claim_run cr ON cr.claim_id = ec.id
         WHERE vl.deleted_at IS NULL
-          AND COALESCE(cr.run_id,
-            (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
-          ) = ${claim.runId}
+          AND ${attributedRunId()} = ${claim.runId}
       )
   `);
 

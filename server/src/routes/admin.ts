@@ -35,15 +35,20 @@ adminRoutes.patch("/admin/users/:id/role", requireAdmin, async (c) => {
     return c.json({ error: "A valid user id and role (member|trusted|admin) are required." }, 400);
   }
 
-  const current = getUserRole(db, id);
-  if (current == null) return c.json({ error: "User not found" }, 404);
+  // Read the role, check the last-admin guard, and write in ONE transaction so
+  // the count-then-update can't race a concurrent role change.
+  const outcome = db.transaction((tx): { code: 200 } | { code: 404 | 409; error: string } => {
+    const current = getUserRole(tx, id);
+    if (current == null) return { code: 404, error: "User not found" };
+    // Guard against locking everyone out: the last admin can't be demoted.
+    if (current === "admin" && role !== "admin" && countAdmins(tx) <= 1) {
+      return { code: 409, error: "Can't demote the only admin." };
+    }
+    tx.run(sql`UPDATE users SET role = ${role} WHERE id = ${id}`);
+    return { code: 200 };
+  });
 
-  // Guard against locking everyone out: the last admin can't be demoted.
-  if (current === "admin" && role !== "admin" && countAdmins(db) <= 1) {
-    return c.json({ error: "Can't demote the only admin." }, 409);
-  }
-
-  db.run(sql`UPDATE users SET role = ${role} WHERE id = ${id}`);
+  if (outcome.code !== 200) return c.json({ error: outcome.error }, outcome.code);
   return c.json({ ok: true, id, role });
 });
 

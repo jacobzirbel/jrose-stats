@@ -28,7 +28,7 @@ export function seedContent(db: DB): ContentCounts {
     }
 
     tx.insert(catalogItems)
-      .values(EVENTS.map((e) => ({ categoryId: eventsCat.id, slug: e.slug, label: e.label, status: "active" as const })))
+      .values(EVENTS.map((e) => ({ categoryId: eventsCat.id, slug: e.slug, label: e.label, status: "active" as const, sortOrder: e.sortOrder ?? 0 })))
       .onConflictDoNothing()
       .run();
 
@@ -71,7 +71,7 @@ export function seedCategoryFields(db: DB): number {
         catalogItemId = item.id;
       }
 
-      return { categoryId, catalogItemId, slug: f.slug, label: f.label, type: f.type, refCategoryId, isIdentity: f.identity ? 1 : 0 };
+      return { categoryId, catalogItemId, slug: f.slug, label: f.label, type: f.type, refCategoryId, isIdentity: f.identity ? 1 : 0, options: f.options ? JSON.stringify(f.options) : null };
     });
 
     tx.insert(categoryFields).values(rows).onConflictDoNothing().run();

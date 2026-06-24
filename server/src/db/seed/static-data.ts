@@ -15,7 +15,19 @@ export const CATEGORIES = [
 // Curated content catalog_items, seeded as `active` (community proposals come
 // later as `proposed`). Labels are JZ's; verify wording/spelling. Includes the
 // former "jokes" (Erika gags, etc.) now living under Events.
-export const EVENTS = [
+export interface EventSeed {
+  slug: string;
+  label: string;
+  // Pins position in the Events picker; the list sorts by (sortOrder, label).
+  // Omit for the default 0 = alphabetical bucket; negative floats to the top.
+  sortOrder?: number;
+}
+
+export const EVENTS: EventSeed[] = [
+  // Pinned to the top: the run-intro naming moments (carry a `name` text field).
+  { slug: "picked-rival", label: "Picked rival pokemon", sortOrder: -3 },
+  { slug: "named-self", label: "Named self", sortOrder: -2 },
+  { slug: "named-rival", label: "Named rival", sortOrder: -1 },
   { slug: "restarts-run", label: "Restarts the run" },
   { slug: "e4-badge-boost-glitch-strat", label: "E4 badge boost glitch strat" },
   { slug: "forgot-erika", label: "Forgot Erika" },
@@ -23,6 +35,9 @@ export const EVENTS = [
   { slug: "badge-boost-glitch-explained", label: "Badge boost glitch explained" },
   { slug: "no-healing-spot-ss-anne", label: "No healing spot on S.S. Anne" },
   { slug: "count-impression", label: "Count impression" },
+  { slug: "lora-lee", label: "Lora-lee" },
+  { slug: "lora-lay", label: "Lora-lay" },
+  { slug: "lora-lie", label: "Lora-lie" },
 ] as const;
 
 // Per-claim metadata field config (core's category_fields). Each entry is one
@@ -36,6 +51,9 @@ export interface CategoryFieldSeed {
   label: string;
   type: "text" | "number" | "duration" | "enum" | "catalog_ref";
   refCategory?: string;
+  // The picker's choices for type='enum' (serialized to category_fields.options
+  // as JSON); omit for every other type. The stored claim value is the `value`.
+  options?: { value: string; label: string }[];
   // Identity-bearing: the field's value is part of the fact's key (see
   // category_fields.isIdentity). Used by the copy mechanics so one mechanic can
   // capture a SET of moves (Mimic copying Tackle AND Growl = two facts).
@@ -56,6 +74,27 @@ export const CATEGORY_FIELDS: CategoryFieldSeed[] = [
   // `time` is stored as seconds; the workbench accepts M:SS and parses it.
   { category: "battles", slug: "level", label: "Level (after battle)", type: "number" },
   { category: "battles", slug: "time", label: "In-game time (after battle, 0 if unknown)", type: "duration" },
+  // Free-text capture when JZ logs "Badge boost glitch explained". Plain text for
+  // now (item-scoped to that one event); the multi-choice sentiment — defensive /
+  // didn't-know-during-run / throwaway — gets derived from this text later.
+  { category: "events", item: "badge-boost-glitch-explained", slug: "sentiment", label: "Sentiment", type: "text" },
+  // The names chosen at the run intro — one text field per event.
+  { category: "events", item: "named-self", slug: "name", label: "Name", type: "text" },
+  { category: "events", item: "named-rival", slug: "name", label: "Name", type: "text" },
+  // Which starter the rival picked — always one of the three Gen-1 starters, so a
+  // single-select enum picker rather than free text.
+  {
+    category: "events",
+    item: "picked-rival",
+    slug: "pokemon",
+    label: "Pokémon",
+    type: "enum",
+    options: [
+      { value: "bulbasaur", label: "Bulbasaur" },
+      { value: "charmander", label: "Charmander" },
+      { value: "squirtle", label: "Squirtle" },
+    ],
+  },
 ];
 
 // The combined, ordered major-battle list: gyms, rival fights, the two Giovanni

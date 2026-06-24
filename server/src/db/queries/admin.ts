@@ -10,6 +10,7 @@
 import { sql } from "drizzle-orm";
 
 import type { DB } from "../client";
+import { attributedRunId } from "../run-attribution";
 
 export interface AdminUser {
   id: number;
@@ -63,13 +64,18 @@ export function getUsers(db: DB): AdminUser[] {
   `);
 }
 
+/** A read-only handle: the live db OR an open transaction. countAdmins and
+ * getUserRole only read, so the role-change route can pass its `tx` and run the
+ * last-admin guard + the write atomically in one transaction. */
+type Reader = Pick<DB, "all">;
+
 /** How many admins exist — used to block demoting the last one. */
-export function countAdmins(db: DB): number {
+export function countAdmins(db: Reader): number {
   return db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM users WHERE role = 'admin'`)[0].n;
 }
 
 /** A single user's current role, or null if no such user. */
-export function getUserRole(db: DB, id: number): string | null {
+export function getUserRole(db: Reader, id: number): string | null {
   return db.all<{ role: string }>(sql`SELECT role FROM users WHERE id = ${id}`)[0]?.role ?? null;
 }
 
@@ -93,9 +99,7 @@ export function getAdminQueue(db: DB): AdminQueue {
       MIN(q.timestampSec) AS timestampSec
     FROM (
       SELECT
-        COALESCE(cr.run_id,
-          (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
-        ) AS runId,
+        ${attributedRunId()} AS runId,
         ec.catalog_item_id AS catalogItemId,
         ci.label AS label,
         cat.slug AS category,

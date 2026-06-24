@@ -11,6 +11,7 @@
 import { sql } from "drizzle-orm";
 
 import type { DB } from "../db/client";
+import { attributedRunId } from "../db/run-attribution";
 import {
   type CanonicalRun,
   type ClaimStatus,
@@ -76,12 +77,7 @@ export function getCanonicalRun(db: DB, runId: number): CanonicalRun | null {
     JOIN video_logs vl ON vl.id = ec.log_id
     LEFT JOIN claim_run cr ON cr.claim_id = ec.id
     WHERE vl.deleted_at IS NULL
-      AND COALESCE(
-        cr.run_id,
-        (SELECT rv.run_id FROM run_videos rv
-          WHERE rv.video_id = vl.video_id
-          GROUP BY rv.video_id HAVING COUNT(*) = 1)
-      ) = ${runId}
+      AND ${attributedRunId()} = ${runId}
   `;
 
   const claimRows = db.all<ClaimRow>(sql`

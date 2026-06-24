@@ -15,6 +15,7 @@
 import { inArray, sql } from "drizzle-orm";
 
 import type { DB } from "../db/client";
+import { attributedRunId } from "../db/run-attribution";
 import { eventClaims } from "../db/schema/core";
 
 const ORDINAL = new Set(["battles"]);
@@ -47,10 +48,7 @@ export function runMatching(db: DB, runId: number): void {
     LEFT JOIN claim_run cr ON cr.claim_id = ec.id
     WHERE vl.deleted_at IS NULL
       AND ec.status IN ('proposed','agreed','contested','overturned','certified')
-      AND COALESCE(
-        cr.run_id,
-        (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
-      ) = ${runId}
+      AND ${attributedRunId()} = ${runId}
   `);
 
   // Field VALUES are part of a fact's content: two logs that both tag an item
@@ -68,10 +66,7 @@ export function runMatching(db: DB, runId: number): void {
     JOIN video_logs vl ON vl.id = ec.log_id
     LEFT JOIN claim_run cr ON cr.claim_id = ec.id
     WHERE vl.deleted_at IS NULL
-      AND COALESCE(
-        cr.run_id,
-        (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
-      ) = ${runId}
+      AND ${attributedRunId()} = ${runId}
   `);
   const fieldsByClaim = new Map<number, { slug: string; ident: string; isIdentity: number }[]>();
   for (const f of fieldRows) {
@@ -214,10 +209,7 @@ export function recomputeRecordState(db: DB, runId: number): void {
       LEFT JOIN claim_run cr ON cr.claim_id = ec.id
       WHERE vl.deleted_at IS NULL
         AND ec.status IN ('proposed','agreed','contested','certified')
-        AND COALESCE(
-          cr.run_id,
-          (SELECT rv.run_id FROM run_videos rv WHERE rv.video_id = vl.video_id GROUP BY rv.video_id HAVING COUNT(*) = 1)
-        ) = ${runId}
+        AND ${attributedRunId()} = ${runId}
     `)[0];
     // Agreement → live, but ONLY with something to publish: two empty logs (no
     // agreed fact) must not latch an empty record as canonical (M1). A diff opens
