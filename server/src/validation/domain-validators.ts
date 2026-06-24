@@ -184,3 +184,56 @@ export class MovesPresentValidator implements ClaimValidator {
     return out;
   }
 }
+
+/**
+ * Completeness for the NON-GYM battles. Gyms are required + ordered by
+ * `GymCompletenessValidator`; this requires every OTHER battle (the rival fights,
+ * both Giovanni fights, the Elite Four, the Champion) to be present per
+ * non-abandoned run — EXCEPT the ones in `OPTIONAL_SLUGS`. `rival-1a` is an extra
+ * rival fight that doesn't always happen, so it's the lone opt-out. Waived for
+ * `impossible_abandoned`, like the gym + moves checks.
+ *
+ * (Optional-ness is a small hardcoded set here, matching `REQUIRED_GYMS = 8`. If
+ * optional battles proliferate, promote it to a `catalog_items` flag.)
+ */
+export class BattlesPresentValidator implements ClaimValidator {
+  static readonly OPTIONAL_SLUGS = new Set(["rival-1a"]);
+
+  constructor(private readonly db: DB) {}
+
+  validate(ctx: ValidationContext): Violation[] {
+    const gymItemIds = new Set(
+      this.db.all<{ id: number }>(sql`SELECT catalog_item_id AS id FROM gyms`).map((r) => r.id),
+    );
+    // Every active battle that is neither a gym nor explicitly optional.
+    const required = this.db
+      .all<{ id: number; slug: string; label: string }>(sql`
+        SELECT ci.id AS id, ci.slug AS slug, ci.label AS label
+        FROM catalog_items ci
+        JOIN categories c ON c.id = ci.category_id
+        WHERE c.slug = 'battles' AND ci.status = 'active'
+      `)
+      .filter((b) => !gymItemIds.has(b.id) && !BattlesPresentValidator.OPTIONAL_SLUGS.has(b.slug));
+
+    const runs = videoRuns(this.db, ctx.video.id);
+    const multiRun = runs.length > 1;
+    const out: Violation[] = [];
+
+    for (const run of runs) {
+      if (run.status === "impossible_abandoned") continue;
+      const present = new Set(
+        ctx.claims
+          .filter((c) => c.categorySlug === "battles" && (!multiRun || runIdForClaim(this.db, c.id) === run.id))
+          .map((c) => c.catalogItemId),
+      );
+      const missing = required.filter((b) => !present.has(b.id));
+      if (missing.length) {
+        out.push({
+          code: "battles-incomplete",
+          message: `${run.name}: missing ${missing.map((b) => b.label).join(", ")}.`,
+        });
+      }
+    }
+    return out;
+  }
+}

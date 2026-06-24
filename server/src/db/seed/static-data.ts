@@ -54,6 +54,9 @@ export interface CategoryFieldSeed {
   // The picker's choices for type='enum' (serialized to category_fields.options
   // as JSON); omit for every other type. The stored claim value is the `value`.
   options?: { value: string; label: string }[];
+  // Validation-required: if a claim on this scope exists, the field must hold a
+  // value (ClaimFieldsValidator → `claim-field-missing`). Default 0 (optional).
+  required?: boolean;
   // Identity-bearing: the field's value is part of the fact's key (see
   // category_fields.isIdentity). Used by the copy mechanics so one mechanic can
   // capture a SET of moves (Mimic copying Tackle AND Growl = two facts).
@@ -78,9 +81,10 @@ export const CATEGORY_FIELDS: CategoryFieldSeed[] = [
   // now (item-scoped to that one event); the multi-choice sentiment — defensive /
   // didn't-know-during-run / throwaway — gets derived from this text later.
   { category: "events", item: "badge-boost-glitch-explained", slug: "sentiment", label: "Sentiment", type: "text" },
-  // The names chosen at the run intro — one text field per event.
-  { category: "events", item: "named-self", slug: "name", label: "Name", type: "text" },
-  { category: "events", item: "named-rival", slug: "name", label: "Name", type: "text" },
+  // The names chosen at the run intro — one text field per event. Required: if you
+  // log the naming, you must record the name (can't submit a blank "Named self").
+  { category: "events", item: "named-self", slug: "name", label: "Name", type: "text", required: true },
+  { category: "events", item: "named-rival", slug: "name", label: "Name", type: "text", required: true },
   // Which starter the rival picked — always one of the three Gen-1 starters, so a
   // single-select enum picker rather than free text.
   {
@@ -111,6 +115,8 @@ export interface BattleSeed {
 
 export const BATTLES: BattleSeed[] = [
   { slug: "rival-1", label: "Rival 1" },
+  // Optional extra rival fight — NOT a gym, so not required by GymCompletenessValidator.
+  { slug: "rival-1a", label: "Rival 1A" },
   { slug: "gym-brock", label: "Brock — Pewter Gym", gym: { leader: "Brock", city: "Pewter City", order: 1 } },
   { slug: "rival-2", label: "Rival 2" },
   { slug: "gym-misty", label: "Misty — Cerulean Gym", gym: { leader: "Misty", city: "Cerulean City", order: 2 } },

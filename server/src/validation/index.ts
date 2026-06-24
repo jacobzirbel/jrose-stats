@@ -15,7 +15,12 @@ import {
   RequiredCategoriesPresent,
   TimestampBounds,
 } from "./core-validators";
-import { GymCompletenessValidator, LearnsetValidator, MovesPresentValidator } from "./domain-validators";
+import {
+  BattlesPresentValidator,
+  GymCompletenessValidator,
+  LearnsetValidator,
+  MovesPresentValidator,
+} from "./domain-validators";
 import type { ClaimValidator, ContextClaim, ValidationContext, Violation } from "./types";
 
 export type { Violation } from "./types";
@@ -89,6 +94,7 @@ export function validateLog(db: DB, logId: number): Violation[] {
     new LearnsetValidator(db),
     new GymCompletenessValidator(db),
     new MovesPresentValidator(db),
+    new BattlesPresentValidator(db),
   ];
 
   return validators.flatMap((v) => v.validate(ctx));
