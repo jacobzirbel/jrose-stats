@@ -199,6 +199,18 @@ export class Workbench {
       (this.reconciling() || this.editing()),
   );
 
+  /**
+   * A submitted log can be reopened for edits unless the run has latched
+   * (`live`/`escalated` — the server rejects those). Surfaced in the submit
+   * footer so a solo logger can edit before a second log ever exists; the
+   * reconcile panel keeps its own button for the two-log flow.
+   */
+  readonly canReopen = computed(() => {
+    if (!this.submitted()) return false;
+    const s = this.canonical()?.recordState;
+    return s !== 'live' && s !== 'escalated';
+  });
+
   /** Plain-language differences between my live log and the other logger's. */
   readonly diffLines = computed<DiffLine[]>(() => {
     if (!this.showReconcile()) return [];

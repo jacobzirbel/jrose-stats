@@ -110,7 +110,12 @@
 
       <div class="submit">
         @if (submitted()) {
-          <p class="ok">✓ Submitted.</p>
+          <p class="ok">
+            ✓ Submitted.
+            @if (canReopen() && !showReconcile()) {
+              <button type="button" class="edit-mine" (click)="reopen()">Edit my log</button>
+            }
+          </p>
         } @else {
           @if (violations().length) {
             <ul class="violations">

@@ -224,6 +224,18 @@ youtube-player {
 .submit .ok {
   color: #2e9e2e;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.submit .edit-mine {
+  border: 1px solid #1e8e3e;
+  background: #fff;
+  color: #1e8e3e;
+  border-radius: 6px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
 }
 .violations {
   margin: 0 0 0.5rem;
