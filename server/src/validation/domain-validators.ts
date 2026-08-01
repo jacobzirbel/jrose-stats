@@ -41,6 +41,11 @@ function runIdForClaim(db: DB, claimId: number): number | null {
 
 /** A Moves claim's catalog item must resolve to a move in its run's learnset. */
 export class LearnsetValidator implements ClaimValidator {
+  // Moves any Pokémon can use without learning them (Struggle, the no-PP
+  // fallback) — not in any learnset, so exempt from the check. Keep in sync with
+  // UNIVERSAL_MOVES in db/seed/static-data.ts.
+  static readonly UNIVERSAL = new Set(["struggle"]);
+
   constructor(private readonly db: DB) {}
 
   validate(ctx: ValidationContext): Violation[] {
@@ -69,10 +74,11 @@ export class LearnsetValidator implements ClaimValidator {
       }
       if (!run) continue; // no run on the video — nothing to check against
 
-      const move = this.db.all<{ id: number }>(
-        sql`SELECT id FROM moves WHERE catalog_item_id = ${c.catalogItemId}`,
+      const move = this.db.all<{ id: number; name: string }>(
+        sql`SELECT id, name FROM moves WHERE catalog_item_id = ${c.catalogItemId}`,
       )[0];
       if (!move) continue; // not a move catalog item; LearnsetValidator ignores it
+      if (LearnsetValidator.UNIVERSAL.has(move.name)) continue; // Struggle etc. — usable by all
 
       const learns = this.db.all<{ one: number }>(sql`
         SELECT 1 AS one FROM pokemon_moves

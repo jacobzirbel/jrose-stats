@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import type { DB } from "../client";
 import { catalogItems, categories, gyms, moves, pokemon, pokemonMoves, runs } from "../schema";
 import { loadCache } from "./cache";
-import { BATTLES, CATEGORIES, GEN1_VERSION_GROUPS, MISSINGNO } from "./static-data";
+import { BATTLES, CATEGORIES, GEN1_VERSION_GROUPS, MISSINGNO, UNIVERSAL_MOVES } from "./static-data";
 
 function titleCase(slug: string): string {
   return slug
@@ -58,7 +58,14 @@ export function seedReference(db: DB): SeedCounts {
     tx.insert(pokemon).values({ ...MISSINGNO }).onConflictDoNothing().run();
 
     // 3. moves → catalog_items bridge + moves lookup -----------------------
-    const moveCatalogRows = cache.moveDetails.map((m) => ({
+    // PokéAPI moves + the universal extras it omits (Struggle), normalized to one
+    // shape. The extras get NO learnset rows (step 4) and are exempted from the
+    // learnset check in LearnsetValidator.
+    const allMoves = [
+      ...cache.moveDetails.map((m) => ({ id: m.id, name: m.name, category: m.damage_class?.name ?? null })),
+      ...UNIVERSAL_MOVES,
+    ];
+    const moveCatalogRows = allMoves.map((m) => ({
       categoryId: movesCat,
       slug: m.name,
       label: titleCase(m.name),
@@ -73,11 +80,11 @@ export function seedReference(db: DB): SeedCounts {
       .all();
     const moveCatBySlug = new Map(moveCatItems.map((r) => [r.slug, r.id]));
 
-    const moveRows = cache.moveDetails.map((m) => ({
+    const moveRows = allMoves.map((m) => ({
       id: m.id, // PokéAPI id = domain identity
       catalogItemId: moveCatBySlug.get(m.name)!,
       name: m.name,
-      category: m.damage_class?.name ?? null,
+      category: m.category,
     }));
     chunked(moveRows, (c) => tx.insert(moves).values(c).onConflictDoNothing().run());
 

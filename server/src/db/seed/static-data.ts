@@ -26,6 +26,7 @@ export interface EventSeed {
 export const EVENTS: EventSeed[] = [
   // Pinned to the top: the run-intro naming moments (carry a `name` text field).
   { slug: "picked-rival", label: "Picked rival pokemon", sortOrder: -3 },
+  { slug: "named-poke", label: "Named ", sortOrder: -2 },
   { slug: "named-self", label: "Named self", sortOrder: -2 },
   { slug: "named-rival", label: "Named rival", sortOrder: -1 },
   { slug: "restarts-run", label: "Restarts the run" },
@@ -83,6 +84,7 @@ export const CATEGORY_FIELDS: CategoryFieldSeed[] = [
   { category: "events", item: "badge-boost-glitch-explained", slug: "sentiment", label: "Sentiment", type: "text" },
   // The names chosen at the run intro — one text field per event. Required: if you
   // log the naming, you must record the name (can't submit a blank "Named self").
+  { category: "events", item: "named-poke", slug: "name", label: "Name", type: "text", required: true },
   { category: "events", item: "named-self", slug: "name", label: "Name", type: "text", required: true },
   { category: "events", item: "named-rival", slug: "name", label: "Name", type: "text", required: true },
   // Which starter the rival picked — always one of the three Gen-1 starters, so a
@@ -138,6 +140,14 @@ export const BATTLES: BattleSeed[] = [
   { slug: "e4-lance", label: "Lance" },
   { slug: "champion", label: "Champion" },
 ];
+
+// Moves PokéAPI omits from learnsets because they're universally usable, not
+// learned — the no-PP fallback. Seeded as real moves (so claims/stats treat them
+// like any move) but EXEMPT from the learnset check (see LearnsetValidator).
+// PokéAPI ids continue the move sequence (Struggle = 165).
+export const UNIVERSAL_MOVES = [
+  { id: 165, name: "struggle", category: "physical" },
+] as const;
 
 // MissingNo. — dex 0, the glitch.
 export const MISSINGNO = {
