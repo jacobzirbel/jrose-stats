@@ -74,3 +74,11 @@ launch.json
 .parcel-cache/
 dist-ssr/
 coverage/
+docs/manuals/admin-console-internals.md
+docs/manuals/blind-pair-reconciliation.md
+docs/manuals/canonical-facts-derivation.md
+docs/manuals/claims-lifecycle.md
+docs/manuals/contribution-lifecycle.md
+docs/manuals/core-domain-split.md
+docs/manuals/http-api-reference.md
+docs/manuals/local-dev-setup.md
