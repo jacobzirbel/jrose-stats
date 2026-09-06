@@ -20,3 +20,8 @@ log blocks a video for everyone.
 - [ ] Releasing does not hard-delete the log's data
 
 ## Notes
+
+Legwork: `legwork.md` — soft-delete is enough (both partial uniques are already scoped to
+`deleted_at IS NULL`). One scope call to make first: **draft-only vs. also submitted**. Submitted
+drags in the `live` latch + stale `agreed` statuses; `db/ops/reset-editor2.ts` is the reference
+for that sequence. Recommends draft-only.

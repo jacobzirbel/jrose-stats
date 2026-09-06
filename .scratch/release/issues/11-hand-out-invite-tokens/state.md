@@ -18,3 +18,5 @@ FAQ as it happens.
 - [ ] Questions asked during onboarding are captured for the FAQ
 
 ## Notes
+
+Nothing to dig up beyond `02` — the token URL shape it settles is what gets pasted here.

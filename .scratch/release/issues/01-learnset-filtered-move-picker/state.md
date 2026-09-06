@@ -19,3 +19,7 @@ cheerfully offers choices the submit will refuse.
 - [ ] Keyboard-driven flow through the picker is unchanged — no new mouse-only step
 
 ## Notes
+
+Legwork: `legwork.md` — where both pickers live, why the learnset lookup rides on
+`/api/logs/:videoId/open` rather than `/api/catalog`, and the two things that must NOT be
+filtered (Struggle; the mimic `copied-move` field).

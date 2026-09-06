@@ -23,3 +23,9 @@ knowing now, while it's one run and two cooperating people.
 - [ ] The slot-2 gate is closed afterwards
 
 ## Notes
+
+Legwork: `legwork.md` — the end-to-end path with file/line anchors, and three things to know
+first: pick a **single-run** video (both known workbench bugs are multi-run only), there is only
+**one** reconciliation round before escalation, and the local dev DB already has `editor2`
+squatting slot 2 on videos 1/2/8/9. Note `04` must be deployed but left **open** for this; AC 5
+closing the gate is the last step here, not part of `04`.

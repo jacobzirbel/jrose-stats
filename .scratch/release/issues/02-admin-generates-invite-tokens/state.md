@@ -21,3 +21,6 @@ alt-account arms race.
 - [ ] An optional note can be attached to a token at generation time
 
 ## Notes
+
+Legwork: `legwork.md` — table goes in `schema/core.ts`, the generate/migrate/drift-gate loop, and
+the files to touch on both sides. The invite **URL shape** is shared with `03`; settle it once.

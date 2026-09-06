@@ -5,7 +5,7 @@ what breaks if it's left alone.
 
 ## Cross-run reopen latch — REAL BUG, unfixed
 
-`server/src/api/workbench.ts:344` — `reopen` blocks if **any** run hosted by the video is
+`server/src/routes/workbench.ts:344` — `reopen` blocks if **any** run hosted by the video is
 `live`/`escalated`. In a two-run video (video 14: nidoran-f run 30 + nidoran-m run 33), once run A
 goes live neither logger can reopen the shared log to fix run B. Same for `escalated`.
 

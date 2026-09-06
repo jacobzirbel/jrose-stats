@@ -22,3 +22,7 @@ introduces the smallest one that works — resist building a general feature-fla
 - [ ] A non-admin cannot change the switch
 
 ## Notes
+
+Legwork: `legwork.md` — the gate is one branch in `routes/workbench.ts:131–144`; ACs 4 and 5 fall
+out for free if it goes inside `if (!log)`. Recommends a `site_settings` core table shaped like
+the existing `user_settings`. Also flags spine-grid copy that goes stale once the gate closes.

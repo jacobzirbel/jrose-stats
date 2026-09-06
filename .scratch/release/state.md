@@ -28,6 +28,16 @@ droppable if invites matter more.
 
 - **Domain name.** Shape settled — generic apex, this site on a `jrose.` subdomain. Blocks `10`.
 - **Where site-wide config lives.** Nothing in the schema does this yet. A design call for `04`,
-  not a research task.
+  not a research task. Legwork recommends a `site_settings` core table shaped like the existing
+  `user_settings` — see `issues/04-slot-two-gate-switch/legwork.md`.
+- **Email on the invite-redeem form.** `users.email` is NOT NULL; the form as specced only asks
+  for username + password. A call for `03` — see its `legwork.md`.
 
 ## Notes
+
+Every startable ticket has had a legwork pass against the live code. `01`–`05`, `09` and `10`
+carry a `legwork.md` in their directory; `06`, `07` and `11` needed only a few lines in their own
+Notes.
+
+**Sequencing catch:** `09` (prove the reconcile path) needs `04` deployed but left **open** —
+closing the slot-2 gate is `09`'s last acceptance criterion, not part of building `04`.

@@ -21,3 +21,7 @@ signed-in user; the gate is on account creation, not on review.
 - [ ] Existing accounts can still sign in normally
 
 ## Notes
+
+Legwork: `legwork.md` — every file on the close-public-signup path, plus the one real decision:
+`users.email` is NOT NULL and the redeem form as specced only asks for username + password.
+Recommendation there is to keep asking for email (no core schema change).

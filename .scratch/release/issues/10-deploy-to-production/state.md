@@ -28,3 +28,8 @@ so the apex stays free for whatever's next. The name itself is not chosen.
 - [ ] The client is built off the VM
 
 ## Notes
+
+Legwork: `legwork.md` — confirmed zero deploy artifacts exist, plus the nginx/SPA-fallback and
+service shape. Two traps: `NODE_ENV=production` is what makes the session cookie `Secure`
+(`routes/auth.ts:22–30`), and `bun run db:seed` creates admin/editor1/editor2/member with
+**username == password** — do not run it unguarded on the box.

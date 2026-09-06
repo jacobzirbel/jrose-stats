@@ -18,3 +18,12 @@ deriving stats in this ticket.
 - [ ] It states plainly that stats are coming, without promising a date
 
 ## Notes
+
+Client-only — no server work, no API call, no guard.
+
+- New `client/src/app/pages/stats.ts` + `stats.html` (separate template file per
+  `CODING_STANDARDS.md`).
+- Route in `client/src/app/app.routes.ts`, **before** the `**` catch-all.
+- Nav: `client/src/app/app.html`. The `<nav>` today only renders inside the signed-in / signed-out
+  auth branches — a public link has to sit outside both, next to `.brand`.
+- Carries into `10`: nginx needs `try_files $uri $uri/ /index.html` or `/stats` 404s on reload.
