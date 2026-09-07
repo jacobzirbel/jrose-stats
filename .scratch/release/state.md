@@ -24,14 +24,31 @@ gobrain namespace mirrors it for chat sessions and holds the history.
 Six are startable today. `01` gates nothing — quality-of-life for everyone logging from here on,
 droppable if invites matter more.
 
+## Decisions (settled 2026-09-06)
+
+- **Site-wide config → env var, not a table.** The slot-2 gate is one boolean; an env var is
+  enough and flipping it costs a redeploy, which is acceptable with one operator. The
+  `site_settings` table recommended in `issues/04-slot-two-gate-switch/legwork.md` is NOT built.
+  Revisit only if a second flag appears or the gate needs flipping without a deploy window — a
+  cheap migration later, not a foundation being unwound.
+- **Email → drop the column entirely.** JZ does not want to deal with email at all: no
+  verification, no reset flow, no Auth0. Username + password only; a locked-out logger gets a
+  manual reset from JZ or makes a new account, which is fine for a handful of invited people.
+  Chosen over dropping just the NOT NULL (leaves a dead column) and over synthesizing
+  `username@local` as the seed does (a lie in the database). Touch points to change — verified
+  2026-09-06, and note the column is NOT NULL **and** UNIQUE:
+  - `server/src/db/schema/core.ts` — the column, plus a migration
+  - `server/src/routes/auth.ts` — signup validation and insert
+  - `server/src/auth/session.ts` — `SessionUser.email` and its SELECT
+  - `server/src/db/queries/admin.ts` — `AdminUser.email` and its SELECT
+  - `server/src/db/seed/users.ts` — the `${username}@local` synthesis
+  Belongs to `03`; JZ runs the migration.
+
 ## Open decisions
 
-- **Domain name.** Shape settled — generic apex, this site on a `jrose.` subdomain. Blocks `10`.
-- **Where site-wide config lives.** Nothing in the schema does this yet. A design call for `04`,
-  not a research task. Legwork recommends a `site_settings` core table shaped like the existing
-  `user_settings` — see `issues/04-slot-two-gate-switch/legwork.md`.
-- **Email on the invite-redeem form.** `users.email` is NOT NULL; the form as specced only asks
-  for username + password. A call for `03` — see its `legwork.md`.
+- **Domain name.** Deferred by JZ 2026-09-06 — not choosing yet, placeholders everywhere are
+  fine. Shape remains settled: generic apex, this site on a `jrose.` subdomain. Blocks `10` only
+  at the point of actual deploy.
 
 ## Notes
 
