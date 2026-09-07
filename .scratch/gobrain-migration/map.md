@@ -67,11 +67,13 @@ running them. Cheap `tsc`/`bun test` is fine. Don't commit unless asked.
 - **Video windowing is dead, not deferred** (JZ, 2026-09-06). It existed to get both slots filled
   on a video; single logs are now sufficient for stats, so the premise is gone. Stays in gobrain;
   ticket 13 is a no-op. See ticket 02.
+- **Roles are `member/trusted/admin`, full stop** (JZ, 2026-09-06: "I don't care if it's trusted
+  or editor"). No rename is pending, so `CONTEXT.md` records no bridge note. The ticket's own
+  recommendation to document the rename as pending was rejected — that is how `schema.md`'s
+  drift started. See ticket 03.
 
 ## Fog
 
-- Does `CONTEXT.md` record the pending `trusted`→`editor` rename, or stay silent until it
-  ships? Leaning record-it: the mismatch is exactly what trips a cold agent. → ticket 03.
 - Does gobrain's `schema.md` get a "superseded, see the repo" banner once this lands, or is it
   left to rot? → ticket 15.
 - Unknown whether anything in `journal/` (18 files) holds a decision that never made it into a
