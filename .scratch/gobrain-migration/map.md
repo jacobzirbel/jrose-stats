@@ -33,7 +33,10 @@ prose than gobrain does. What's worth saving is the reasoning the code doesn't h
 
 **Precedent for distrusting gobrain:** a prior session asserted a combined-episode video
 couldn't pass the gym validators. That was an unverified guess. Verify every claim against the
-code before writing it into the repo.
+code before writing it into the repo. *Second instance, 2026-09-06:* ticket 01 was written from
+`match.ts`'s header comment alone and framed absence as having no consequence. Reading
+`recomputeRecordState` in the same file showed the opposite at the record level. Read the whole
+file, not the docstring.
 
 **Two gotchas to carry into whatever gets written:**
 - Never `db.get(sql\`\`)` with drizzle bun-sqlite — it returns a positional array. Use
@@ -57,13 +60,16 @@ running them. Cheap `tsc`/`bun test` is fine. Don't commit unless asked.
 - **`journal/` (18), `archived/`, `todo/` stay in gobrain.** History, not reference.
 - **The stats-page tombstone is UN-rejected** (gobrain session 27) — the stats page reads
   single-source logs. Its ADR must record the reversal, not the original rejection.
+- **Membership grain folds into ticket 08** (JZ, 2026-09-06), with a corrected framing: a log is
+  a completeness assertion, and while matching leaves one-sided membership at `proposed` rather
+  than `contested`, `recomputeRecordState` counts `proposed` as unresolved — so omission does
+  block `live`. No code change. See ticket 01.
+- **Video windowing is dead, not deferred** (JZ, 2026-09-06). It existed to get both slots filled
+  on a video; single logs are now sufficient for stats, so the premise is gone. Stays in gobrain;
+  ticket 13 is a no-op. See ticket 02.
 
 ## Fog
 
-- Is set-membership grain (absence is not an assertion) its own ADR, or a consequence folded
-  into the matching ADR? → ticket 01.
-- Where does video windowing (rolling 3, random order, config knob — designed, no code found)
-  belong? → ticket 02.
 - Does `CONTEXT.md` record the pending `trusted`→`editor` rename, or stay silent until it
   ships? Leaning record-it: the mismatch is exactly what trips a cold agent. → ticket 03.
 - Does gobrain's `schema.md` get a "superseded, see the repo" banner once this lands, or is it
