@@ -1,8 +1,8 @@
 # Where does video windowing go?
 
 **Type:** grilling
-**Status:** open
-**Triage:** ready-for-human
+**Status:** resolved
+**Triage:** —
 **Blocked by:** —
 
 gobrain `pipeline-and-workbench.md` § VIDEO WINDOWING (session 14) designs a rolling window:
@@ -21,6 +21,22 @@ with a real logger pool of unknown size.
 Note it interacts with the launch model: slot 2 is gated CLOSED at launch, so windowing has
 nothing to do until that gate opens.
 
+## Answer
+
+**(c) — leave it in gobrain. Windowing is dead, not deferred.**
+
+JZ, 2026-09-06: "I don't think video windowing is gonna be a thing. That was before I decided
+that stats can be generated from a single log. The second log is just the cherry on top."
+
+The design's entire purpose was to concentrate a small logger pool so videos got BOTH slots
+filled. Once a single submitted log is enough to produce stats (see the un-rejected stats-page
+tombstone, ticket 10), there is nothing to concentrate — spread across many videos is no longer
+a failure mode. The premise is gone, so the mechanism is gone with it.
+
+Record the reason, not just the verdict: "single logs are sufficient for stats" is what stops a
+future session reviving windowing from the gobrain design doc.
+
 ## Acceptance criteria
-- Destination chosen and recorded under `## Answer`.
-- If (a) or (b), ticket 12 picks up the write; if (c), nothing else to do.
+- Destination chosen and recorded under `## Answer`. — done
+- If (a) or (b), ticket 12 picks up the write; if (c), nothing else to do. — (c); ticket 13 is a
+  no-op.
